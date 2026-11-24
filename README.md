@@ -62,3 +62,6 @@ The host sees a **Remove** button (press twice to confirm) next to every other t
 
 ## Home
 Click the BID&BAT logo to go to the home screen. Your team stays in the room, and a "Rejoin room" button brings you back.
+
+## Invite link
+In the waiting room the host sees an invite link (`http://<address>/?room=CODE`) with a **Copy invite link** button. Opening it shows the join form with the room code filled in. When playing over ngrok, open the ngrok address yourself first, so the copied link uses that address.

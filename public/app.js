@@ -54,6 +54,9 @@ const store = { get(k = 'ipl') { try { return JSON.parse(localStorage.getItem(k)
 let FR = {}, ws = null, S = null, me = null, lastRecv = 0;
 const draft = {};
 let entry = { mode: 'create', fr: 'CSK', color: '#7c8cff' };
+const inviteCode = (() => { try { return (new URLSearchParams(location.search).get('room') || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5); } catch { return ''; } })();
+if (inviteCode) entry.mode = 'join';                  // opened from an invite link: go straight to the join form
+const inviteUrl = (code) => `${location.origin}/?room=${code}`;
 let selTeam = 'all', selShowAll = false, selDraft = null, wishDraft = null, selTab = 'All', saveTimer = null, selSaved = true;
 let feed = [], feedSeq = 0, feedSeen = 0, feedInit = false, fPrev = { cur: null, holder: null, bid: 0, ni: 0, res: '' };
 const prevVals = {};
@@ -117,7 +120,7 @@ function entryHTML() {
   const tiles = Object.entries(FR).map(([k, f]) => tile(k, f.name, f.c1, k)).join('') + tile('', 'Custom team', entry.color, '★');
   return `<div class="hero"><h1>Your own IPL auction</h1><p>Create a room, share the code, and bid for real IPL players against your friends. Every bid is live.</p></div>
   <div class="panel"><div class="seg"><span class="${create ? 'on' : ''}" data-act="mode" data-m="create">Create a room</span><span class="${create ? '' : 'on'}" data-act="mode" data-m="join">Join a room</span></div>
-    <div class="row">${create ? '' : `<label class="f">Room code<input type="text" id="e_code" maxlength="5" placeholder="e.g. K7QXM" autocomplete="off" style="text-transform:uppercase"></label>`}
+    <div class="row">${create ? '' : `<label class="f">Room code<input type="text" id="e_code" maxlength="5" placeholder="e.g. K7QXM" autocomplete="off" value="${esc(val('e_code', inviteCode))}" style="text-transform:uppercase"></label>`}
       <label class="f">Your name<input type="text" id="e_name" maxlength="30" placeholder="e.g. Rahul" autocomplete="off"></label></div>
     <div class="rule"></div><h2 style="font:600 16px var(--body);margin-bottom:12px">Choose your team</h2><div class="tiles">${tiles}</div>
     ${entry.fr === '' ? `<div class="row" style="margin-top:14px"><label class="f">Team name<input type="text" id="e_team" maxlength="30" placeholder="e.g. Dhoni's Army" autocomplete="off"></label>
@@ -186,7 +189,8 @@ function lobbyHTML(host) {
         <label class="f">Conditions${sel('s_cond', val('s_cond', s.conditions), CONDITIONS, 'Select conditions')}</label></div>
       <div class="row" style="margin-top:20px"><button class="btn fit" data-act="savesettings">Save settings</button><button class="btn pri fit" data-act="startsel">Save and start player selection</button></div></div>`;
   }
-  return `<div class="panel"><h2>Waiting room</h2><div class="sub">Share this code with your friends</div><div class="code">${S.code}</div>
+  return `<div class="panel"><h2>Waiting room</h2><div class="sub">Share this code or the invite link with your friends</div><div class="code">${S.code}</div>
+    <div class="invite"><input type="text" readonly value="${esc(inviteUrl(S.code))}" onfocus="this.select()"><button class="btn pri fit" data-act="copylink">Copy invite link</button></div>
     <div class="teamlist">${teams}</div><div class="rule"></div>${settingsSummary()}${host ? '' : '<p class="sub" style="margin-top:14px">Waiting for the host to start the player selection.</p>'}</div>${form}`;
 }
 
@@ -667,6 +671,12 @@ document.addEventListener('click', (e) => {
       if (!name.trim() || !team) return toast('Enter your name and choose a team.');
       return connect({ action: act, name, team_name: team, code, color: entry.color });
     }
+    case 'copylink': {
+      const url = inviteUrl(S.code);
+      const done = () => toast('Invite link copied. Send it to your friends.');
+      if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(url).then(done, () => toast(url)); return; }
+      const i = document.querySelector('.invite input'); if (i) { i.select(); try { document.execCommand('copy'); return done(); } catch {} } return toast(url);
+    }
     case 'home': {                                       // back to the start screen; your team stays saved so you can rejoin
       if (!S) return;
       if (!confirm('Go to the home screen? Your team stays in the room and you can rejoin from the home screen.')) return;
@@ -739,7 +749,7 @@ document.addEventListener('click', (e) => {
 
 fetch('/api/meta').then((r) => r.json()).then((f) => { FR = f; setHTML('entry', entryHTML()); });
 { let atHome = false; try { atHome = sessionStorage.getItem('iplhome') === '1'; } catch {}
-  const sv = store.get('ipl'); if (sv && !atHome) connect({ action: 'rejoin', code: sv.code, token: sv.token }); }   // reload keeps you in your room
+  const sv = store.get('ipl'); if (sv && !atHome && (!inviteCode || inviteCode === sv.code)) connect({ action: 'rejoin', code: sv.code, token: sv.token }); }   // reload keeps you in your room
 startDust();
 
 // ---------- drag and drop for the XI builder ----------
