@@ -27,7 +27,7 @@ const server = http.createServer((req, res) => {
   if (!file.startsWith(PUBLIC)) { res.writeHead(403); return res.end(); }
   fs.readFile(file, (err, buf) => {
     if (err) { res.writeHead(404); return res.end('Not found'); }
-    res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream' });
+    res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream', 'Cache-Control': /\.(html|js|css|json)$/.test(file) ? 'no-store' : 'public, max-age=30' });
     res.end(buf);
   });
 });
