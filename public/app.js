@@ -31,8 +31,21 @@ const PACE = ['RF', 'RFM', 'RM', 'LF', 'LFM', 'LM'];
 const batLabel = (p) => (p.bat === 'L' ? 'Left-hand batter' : 'Right-hand batter');
 const roleLabel = (p) => (p.type === 'Batsman' ? (p.wicketkeeper ? 'Wicketkeeper-batter' : 'Batter') : p.type === 'Bowler' ? (PACE.includes(p.bowl) ? 'Fast bowler' : 'Bowler') : p.type === 'Spinner' ? 'Spin bowler' : 'All-rounder');
 const initials = (n) => n.split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
+// a drawn shirt in the team's colours with the player's surname on the back (no logos or photos needed)
+function jersey(p, c1, c2, mini) {
+  const body = c1 || '#4a5270', trim = c2 || '#cfd6ff', tx = ink(body);
+  const sur = p.name.trim().split(/\s+/).slice(-1)[0].toUpperCase(), fs = sur.length > 9 ? 17 : sur.length > 7 ? 20 : 25;
+  return `<svg class="jsy" viewBox="0 0 200 200" aria-hidden="true"><path d="M70 28 L40 40 L8 82 L38 104 L52 88 L52 182 L148 182 L148 88 L162 104 L192 82 L160 40 L130 28 Q100 52 70 28Z" fill="${body}" stroke="rgba(0,0,0,.35)" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M8 82 L38 104 L52 88 L40 40Z M192 82 L162 104 L148 88 L160 40Z" fill="${trim}" opacity=".95"/>
+    <path d="M70 28 Q100 52 130 28 L124 24 Q100 42 76 24Z" fill="${trim}"/>
+    <rect x="52" y="168" width="96" height="8" fill="${trim}" opacity=".9"/>
+    ${mini ? `<text x="100" y="118" text-anchor="middle" font-family="Big Shoulders Display,Impact,sans-serif" font-weight="900" font-size="44" fill="${tx}">${esc(initials(p.name))}</text>`
+      : `<text x="100" y="92" text-anchor="middle" font-family="Big Shoulders Display,Impact,sans-serif" font-weight="900" font-size="${fs}" letter-spacing="1" fill="${tx}">${esc(sur)}</text>
+    <text x="100" y="146" text-anchor="middle" font-family="Big Shoulders Display,Impact,sans-serif" font-weight="900" font-size="48" fill="${tx}" opacity=".9">${esc(initials(p.name))}</text>`}</svg>`;
+}
+const kit = (p) => { const f = FR[p.team]; return f ? [f.c1, f.c2] : [null, null]; };
 function portrait(p) {
-  return `<div class="pcard" id="pcard"><div class="pfig"><span class="ini">${esc(initials(p.name))}</span>${p.photo ? `<img src="${esc(p.photo)}" alt="${esc(p.name)}" onerror="this.remove()">` : ''}</div>
+  return `<div class="pcard" id="pcard"><div class="pfig"><span class="ini jersey">${jersey(p, ...kit(p))}</span>${p.photo ? `<img src="${esc(p.photo)}" alt="${esc(p.name)}" onerror="this.remove()">` : ''}</div>
     <div class="pcap">${esc(roleLabel(p))}</div></div>`;
 }
 function abilities(p) {
@@ -79,6 +92,7 @@ const tags = (p) => `${p.overseas ? '<span class="tag os">OS</span>' : ''}${p.wi
 // ---------- networking ----------
 function send(o) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(o)); }
 function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('on'), 3500); }
+const BUILD = '__BUILD__';
 let lastFirst = null, retryT = null;
 function connect(first) {
   lastFirst = first; clearTimeout(retryT); wasLeft = false;
@@ -89,6 +103,7 @@ function connect(first) {
     if (m.type === 'error') { toast(m.message); if (first.action === 'rejoin' && !me) { store.set('ipl', null); lastFirst = null; setHTML('entry', entryHTML()); } }
     if (m.type === 'removed') { wasRemoved = true; store.set('ipl', null); toast('The host removed your team from this auction.'); setTimeout(() => location.reload(), 2500); }
     if (m.type === 'joined') { me = m.pid; store.set('ipl', { code: m.code, token: m.token }); }
+    if (m.type === 'state' && m.build && BUILD !== '__BUILD__' && m.build !== BUILD) return location.reload();   // this tab has an old copy of the page
     if (m.type === 'state') { S = m.state; if (S.phase === 'lobby') { selDraft = null; wishDraft = null; } lastRecv = Date.now(); render(); }
   };
   ws.onclose = () => {
@@ -160,6 +175,20 @@ function settingsSummary() {
     ${p('Purse ' + money(s.purse))}${p('Base ' + money(s.base_price))}${p('Squad of ' + s.squad_size)}${p('Overseas max ' + s.max_overseas)}${p('Timer ' + s.bid_timer + 's')}${p(s.pool_order.join(' → '))}</div>`;
 }
 
+// who is still in this lot: purse, squad size and status for every team
+function teamBar(c, s) {
+  const next = c.holder_id ? c.bid + Math.min(...s.increments) : s.base_price;
+  const chips = S.teams.filter((t) => !t.removed).map((t) => {
+    let st = 'in', label = 'In';
+    if (t.id === c.holder_id) { st = 'lead'; label = 'Leading'; }
+    else if (c.not_interested.includes(t.id)) { st = 'out'; label = 'Passed'; }
+    else if (t.squad.length >= s.squad_size) { st = 'out'; label = 'Squad full'; }
+    else if (c.overseas && t.overseas >= s.max_overseas) { st = 'out'; label = 'Overseas limit'; }
+    else if (t.purse < next) { st = 'out'; label = 'Low purse'; }
+    return `<div class="tb ${st} ${t.id === me ? 'me' : ''}" style="--c:${accentOf(t.color)}">${badge(t, 'sm')}<div class="tbn"><b>${esc(abbr(t))}${t.id === me ? ' (you)' : ''}</b><small>${t.squad.length}/${s.squad_size} players</small></div><div class="tbp"><b>${money(t.purse)}</b><small>${label}</small></div></div>`;
+  }).join('');
+  return `<div class="tbar">${chips}</div>`;
+}
 function stageHTML() {
   const host = S.host_id === me;
   if (S.phase === 'lobby') return lobbyHTML(host);
@@ -263,9 +292,17 @@ function auctionHTML(host) {
   const pools = `<div class="panel poolbar"><span class="sub">Pools left</span>${s.pool_order.map((p) => `<button class="pchip ${S.next_pool === p ? 'on' : ''}" data-act="nextpool" data-pool="${p}" ${!host || !S.pools_left[p] ? 'disabled' : ''}>${p}<b>${S.pools_left[p]}</b>${S.next_pool === p ? '<em>up next</em>' : ''}</button>`).join('')}
     ${host ? '<span class="sub">Tap a pool to bring it forward. The player on stage is not interrupted.</span>' : ''}</div>`;
   return `<div class="panel" style="padding:14px 18px">${settingsSummary()}</div>${pools}
-    <div class="stage"><div>${ctl}${main}</div><div class="rail"><div class="panel" style="margin-top:0"><h2>Purses</h2>${purses}</div>${wl}<div class="panel"><h2>Live activity</h2><div class="log feed">${feedHTML}</div></div></div></div>`;
+    <div class="stage"><div>${ctl}${S.step === 'bidding' && S.current ? teamBar(S.current, s) : ''}${main}</div><div class="rail"><div class="panel" style="margin-top:0"><h2>Purses</h2>${purses}</div>${wl}<div class="panel"><h2>Live activity</h2><div class="log feed">${feedHTML}</div></div></div></div>`;
 }
 
+// the final squad as a pitch: batting order in rows, then impact player and bench
+function fieldHTML(t) {
+  const by = (id) => t.squad.find((p) => p.id === id), c1 = t.color, c2 = '#ffffff', rows = [[0, 2], [2, 5], [5, 8], [8, 11]], names = ['Openers', 'Top and middle order', 'Lower middle order', 'Tail'];
+  const one = (p, n) => `<div class="fp ${p.id === t.captain ? 'cap' : ''}"><i class="fn">${n}</i>${jersey(p, c1, c2, true)}<b>${esc(p.name.split(/\s+/).slice(-1)[0])}</b><small>${p.id === t.captain ? '<em>C</em>' : ''}${p.id === t.keeper ? '<em class="k">WK</em>' : ''}${p.overseas ? '<em class="o">OS</em>' : ''}</small></div>`;
+  const xi = t.xi.map(by).filter(Boolean), imp = t.impact ? by(t.impact) : null, bench = t.squad.filter((p) => !t.xi.includes(p.id) && p.id !== t.impact);
+  return `<div class="field">${rows.map(([a, b], r) => `<div class="frow" title="${names[r]}">${xi.slice(a, b).map((p, k) => one(p, a + k + 1)).join('')}</div>`).join('')}</div>
+    <div class="fside">${imp ? `<div class="fim"><span>⚡ Impact</span>${jersey(imp, c1, c2, true)}<b>${esc(imp.name)}</b></div>` : ''}${bench.length ? `<div class="fbn"><span>Bench</span>${bench.map((p) => `<b>${esc(p.name)}</b>`).join('')}</div>` : ''}</div>`;
+}
 function rankHTML() {
   if (!S.ranking || !S.ranking.length) return '';
   const TL = { S: 'Elite', A: 'Strong', B: 'Average', C: 'Needs work' };
@@ -292,8 +329,8 @@ function teamsHTML() {
     <div class="pr"><span data-key="tp:${t.id}" data-roll="${t.purse}">${money(t.purse)}</span><small>${t.squad.length}/${S.settings.squad_size} players, ${t.overseas}/${S.settings.max_overseas} overseas</small></div></header>
     <div class="svrow">${t.removed ? '<span class="svb">Removed by host</span>' : sav} ${rmBtn(t)}</div>
     ${t.no_keeper_flag ? '<div class="flag">⚑ No wicketkeeper in this squad</div>' : ''}
-    ${t.xi.length === 11 ? `<h4 class="xh">Playing XI</h4><ul class="sq">${t.xi.map((i) => one(t, i)).join('')}</ul>${t.impact ? `<h4 class="xh">Impact player</h4><ul class="sq">${one(t, t.impact)}</ul>` : ''}` : ''}
-    <h4 class="xh">${t.xi.length === 11 ? 'Bench' : 'Squad'}</h4><ul class="sq">${out.filter((p) => p.id !== t.impact).map((p) => `<li><span>${roleIcon(p)} ${esc(p.name)}${tags(p)}</span><span>${money(p.price)}</span></li>`).join('') || '<li><span class="mut">No players</span></li>'}</ul></div>`;
+    ${t.xi.length === 11 && fin ? fieldHTML(t) : t.xi.length === 11 ? `<h4 class="xh">Playing XI</h4><ul class="sq">${t.xi.map((i) => one(t, i)).join('')}</ul>${t.impact ? `<h4 class="xh">Impact player</h4><ul class="sq">${one(t, t.impact)}</ul>` : ''}` : ''}
+    ${t.xi.length === 11 && fin ? '' : `<h4 class="xh">${t.xi.length === 11 ? 'Bench' : 'Squad'}</h4><ul class="sq">${out.filter((p) => p.id !== t.impact).map((p) => `<li><span>${roleIcon(p)} ${esc(p.name)}${tags(p)}</span><span>${money(p.price)}</span></li>`).join('') || '<li><span class="mut">No players</span></li>'}</ul>`}</div>`;
   }).join('');
   const head = fin ? `<div class="finalbar"><b>🏆 All teams are locked in</b><span>Final squads and playing XIs. A new trade unlocks the teams involved until they save again.</span></div>`
     : S.phase === 'finished' ? `<p class="counter">${done} of ${S.teams.length} teams saved. The final screen appears when everyone has saved.</p>` : '';

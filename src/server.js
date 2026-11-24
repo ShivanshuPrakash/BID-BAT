@@ -10,6 +10,9 @@ const PUBLIC = path.join(__dirname, '..', 'public');
 const MIME = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.json': 'application/json', '.svg': 'image/svg+xml', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp' };
 const now = () => Date.now() / 1000;
 
+// build id changes whenever any public file changes; clients that load an old copy reload themselves
+const buildId = () => { let m = 0; try { for (const f of fs.readdirSync(PUBLIC)) { const st = fs.statSync(path.join(PUBLIC, f)); if (st.isFile()) m = Math.max(m, st.mtimeMs); } } catch { /* ignore */ } return String(Math.floor(m)); };
+let BUILD = buildId();
 const rooms = new Map();   // code -> Room
 const socks = new Map();   // code -> Map(pid -> ws)
 
@@ -27,6 +30,7 @@ const server = http.createServer((req, res) => {
   if (!file.startsWith(PUBLIC)) { res.writeHead(403); return res.end(); }
   fs.readFile(file, (err, buf) => {
     if (err) { res.writeHead(404); return res.end('Not found'); }
+    if (file.endsWith('app.js')) buf = Buffer.from(buf.toString('utf8').replace('__BUILD__', BUILD));
     res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream', 'Cache-Control': /\.(html|js|css|json)$/.test(file) ? 'no-store' : 'public, max-age=30' });
     res.end(buf);
   });
@@ -37,7 +41,7 @@ const wss = new WebSocketServer({ server, path: '/ws' });
 function send(ws, obj) { if (ws.readyState === 1) ws.send(JSON.stringify(obj)); }
 function broadcast(room) {
   const t = now();
-  for (const [pid, ws] of socks.get(room.code) || []) send(ws, { type: 'state', state: room.view(pid, t) });
+  for (const [pid, ws] of socks.get(room.code) || []) send(ws, { type: 'state', build: BUILD, state: room.view(pid, t) });
 }
 
 function handle(room, pid, m) {
