@@ -1,0 +1,13 @@
+{
+  "name": "ipl-auction",
+  "version": "1.0.0",
+  "description": "BID&BAT: real-time IPL-style player auction game",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test test/engine.test.js",
+    "e2e": "node test/e2e.js"
+  },
+  "engines": { "node": ">=18" },
+  "dependencies": { "ws": "^8.18.0" }
+}

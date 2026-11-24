@@ -1,0 +1,1 @@
+Put team logos here, named with the team code: CSK.png, MI.png, RCB.png, KKR.png, DC.png, SRH.png, RR.png, PBKS.png, LSG.png, GT.png (png, svg, jpg or webp). Official logos are trademarked, so they are not bundled. Reload the page to see them.
