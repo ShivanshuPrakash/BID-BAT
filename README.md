@@ -65,3 +65,7 @@ Click the BID&BAT logo to go to the home screen. Your team stays in the room, an
 
 ## Invite link
 In the waiting room the host sees an invite link (`http://<address>/?room=CODE`) with a **Copy invite link** button. Opening it shows the join form with the room code filled in. When playing over ngrok, open the ngrok address yourself first, so the copied link uses that address.
+
+## Going back
+- **⌂ Home** (top bar) or the BID&BAT logo: leave to the home screen, then use "Rejoin room" to return.
+- **← Back to waiting room** (host, during player selection): returns everyone to the waiting room. Picks are cleared, teams and settings stay. Once the auction has started it cannot be rewound; use Pause, End auction or Remove team instead.

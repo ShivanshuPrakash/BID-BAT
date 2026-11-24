@@ -87,7 +87,7 @@ function connect(first) {
     if (m.type === 'error') { toast(m.message); if (first.action === 'rejoin' && !me) { store.set('ipl', null); lastFirst = null; setHTML('entry', entryHTML()); } }
     if (m.type === 'removed') { wasRemoved = true; store.set('ipl', null); toast('The host removed your team from this auction.'); setTimeout(() => location.reload(), 2500); }
     if (m.type === 'joined') { me = m.pid; store.set('ipl', { code: m.code, token: m.token }); }
-    if (m.type === 'state') { S = m.state; lastRecv = Date.now(); render(); }
+    if (m.type === 'state') { S = m.state; if (S.phase === 'lobby') { selDraft = null; wishDraft = null; } lastRecv = Date.now(); render(); }
   };
   ws.onclose = () => {
     if (wasRemoved || wasLeft) return;
@@ -137,7 +137,7 @@ function render() {
   const mine = T(me);
   if (mine) setAcc(mine.color);
   const host = S.host_id === me;
-  setHTML('topr', `${S.phase === 'auction' ? `<span class="livepill ${S.paused ? 'p' : ''}"><i></i>${S.paused ? 'Paused' : 'Live'}</span>` : ''}<button class="iconbtn" data-act="sound" title="Sound effects" aria-label="Toggle sound">${soundOn ? '🔊' : '🔇'}</button>
+  setHTML('topr', `${S.phase === 'auction' ? `<span class="livepill ${S.paused ? 'p' : ''}"><i></i>${S.paused ? 'Paused' : 'Live'}</span>` : ''}<button class="btn sm" data-act="home" title="Back to the home screen">⌂ Home</button><button class="iconbtn" data-act="sound" title="Sound effects" aria-label="Toggle sound">${soundOn ? '🔊' : '🔇'}</button>
     <span class="pill">Room <b>${S.code}</b></span>${mine ? `<span class="pill">${badge(mine, 'sm')}${esc(mine.team_name)}</span>` : ''}
     ${mine && ['auction', 'finished'].includes(S.phase) ? `<button class="btn sm tradebtn" data-act="tgo">🔁 Trades${myInbox() ? `<i class="nb">${myInbox()}</i>` : ''}</button>` : ''}
     ${host && S.phase === 'auction' ? `<button class="btn sm ${endArm ? 'armed' : 'danger'}" data-act="endauc">${endArm ? 'Click again to end' : 'End auction'}</button>` : ''}`);
@@ -209,7 +209,7 @@ function selectionHTML(host) {
   return `<div class="panel"><h2>Choose the players for the auction${closed ? '' : `<span class="pill" style="margin-left:auto">Time left <b id="selt">${Math.ceil(S.selection_remaining)}</b>s</span>`}</h2>
     <p class="sub" style="margin-bottom:12px">Tick every player you want to see in the auction. Everyone's picks are combined, and a player nobody picks stays out. Tap the star to wishlist a player: you'll get an alert the moment he comes up for bidding. Only you can see your wishlist. ${closed ? `<b style="color:var(--tx)">${S.pool_size} players will go under the hammer.</b>` : `<span id="savedmsg">${selSaved ? 'Your picks are saved.' : 'Saving…'}</span>`}</p>
     ${closed ? '' : `<div class="tabs">${tabs}</div><div class="row selbar"><label class="f">Team squad<select id="selteam">${teamOpts}</select></label><label class="f">Search players<input type="text" id="q" placeholder="Type a name" autocomplete="off" value="${esc(val('q', ''))}"></label>${selTeam !== 'all' ? `<button class="btn fit" data-act="teamall">${teamPicked === teamList.length ? 'Clear this team' : `Select all ${teamList.length}`}</button><span class="sub">${teamPicked} of ${teamList.length} picked</span>` : ''}</div><div class="plist">${cards}</div>${shown.length < list.length ? `<div class="row"><button class="btn fit" data-act="showall">Show all ${list.length} players</button><span class="sub">Showing ${shown.length}. Pick a team above or search to narrow the list.</span></div>` : ''}`}
-    <div class="row" style="margin-top:18px">${host ? `${closed ? '' : '<button class="btn fit" data-act="closesel">Close selection now</button>'}<button class="btn pri fit" data-act="startauc">Start the auction</button>` : '<span class="sub">The host will start the auction.</span>'}</div></div>`;
+    <div class="row" style="margin-top:18px">${host ? `<button class="btn fit" data-act="backlobby">← Back to waiting room</button>${closed ? '' : '<button class="btn fit" data-act="closesel">Close selection now</button>'}<button class="btn pri fit" data-act="startauc">Start the auction</button>` : '<span class="sub">The host will start the auction.</span>'}</div></div>`;
 }
 
 function bidState() {
@@ -700,6 +700,7 @@ document.addEventListener('click', (e) => {
       saveSelectionSoon(); cache.stage = null; return render();
     }
     case 'wishx': return hideWishFx();
+    case 'backlobby': selDraft = null; wishDraft = null; cache.stage = null; return send({ action: 'back_to_lobby' });
     case 'closesel': return send({ action: 'close_selection' });
     case 'startauc': return send({ action: 'start_auction' });
     case 'nextpool': return send({ action: 'next_pool', pool: el.dataset.pool });

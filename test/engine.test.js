@@ -199,3 +199,10 @@ test('host can remove a team: bid voided, cannot bid or rejoin, ignored for end 
   assert.equal(r.view(h, 11).teams.find((t) => t.id === a).removed, true);
   r.phase = 'finished'; r.saveTeam(h); r.saveTeam(b); assert.equal(r.view(h, 0).all_saved, true);
 });
+
+test('host can step back from selection to the lobby', () => {
+  const r = mk(2); const [h, a] = [...r.teams.keys()]; r.startSelection(h, 0); r.selectPlayers(a, [1, 2], [1]);
+  throws(() => r.backToLobby(a)); r.backToLobby(h);
+  assert.equal(r.phase, 'lobby'); assert.equal(r.teams.get(a).selection.size, 0);
+  r.startSelection(h, 5); assert.equal(r.phase, 'selection');
+});

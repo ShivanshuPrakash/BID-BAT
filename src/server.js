@@ -46,6 +46,7 @@ function handle(room, pid, m) {
     case 'update_settings': return room.updateSettings(pid, m.settings || {});
     case 'start_selection': return room.startSelection(pid, t);
     case 'select_players': return room.selectPlayers(pid, ints(m.ids), ints(m.wish));
+    case 'back_to_lobby': return room.backToLobby(pid);
     case 'close_selection': return room.closeSelection(pid);
     case 'start_auction': return room.startAuction(pid, t);
     case 'bid': return room.placeBid(pid, t, m.increment == null ? null : Number(m.increment));

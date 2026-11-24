@@ -146,6 +146,13 @@ class Room {
     t.selection = new Set(ids);
     t.wishlist = new Set(wish.filter((i) => t.selection.has(i)));
   }
+  // host steps back from player selection to the waiting room (picks are cleared, teams and settings stay)
+  backToLobby(pid) {
+    this.hostOnly(pid);
+    if (this.phase !== 'selection') fail('You can only go back before the auction starts');
+    this.phase = 'lobby'; this.pool = []; this.queue = []; this.selectionDeadline = 0;
+    for (const t of this.teams.values()) { t.selection.clear(); t.wishlist.clear(); }
+  }
   closeSelection(pid) {
     if (pid != null) this.hostOnly(pid);
     if (this.phase !== 'selection') fail('Selection is not open');
