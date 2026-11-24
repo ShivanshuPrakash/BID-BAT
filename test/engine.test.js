@@ -206,3 +206,32 @@ test('host can step back from selection to the lobby', () => {
   assert.equal(r.phase, 'lobby'); assert.equal(r.teams.get(a).selection.size, 0);
   r.startSelection(h, 5); assert.equal(r.phase, 'selection');
 });
+test('sells at once when every rival has passed or cannot bid', () => {
+  const r = mk(3); const [h, a, b] = [...r.teams.keys()]; start(r, [pidOf('Rishabh Pant'), pidOf('Jos Buttler')]);
+  r.placeBid(a, 1); r.notInterestedIn(h); r.tick(2); assert.equal(r.step, 'bidding');     // b can still bid
+  r.notInterestedIn(b); r.tick(3);
+  assert.equal(r.step, 'result'); assert.equal(r.result.status, 'SOLD'); assert.equal(r.result.team_id, a);
+});
+test('everyone passes with no bid: unsold', () => {
+  const r = mk(2); const [h, a] = [...r.teams.keys()]; start(r, [pidOf('Rishabh Pant')]);
+  r.notInterestedIn(h); r.notInterestedIn(a); r.tick(1); assert.equal(r.result.status, 'UNSOLD');
+});
+test('custom bid: validation, big-bid alert and lock', () => {
+  const r = mk(3, { purse: 5000 }); const [h, a, b] = [...r.teams.keys()]; start(r, [pidOf('Rishabh Pant'), pidOf('Jos Buttler')]);
+  r.placeBid(a, 1); assert.equal(r.bid, 20);
+  throws(() => r.placeBid(b, 2, null, 22), /at least/);                 // below current + smallest step
+  r.placeBid(b, 2, null, 40); assert.equal(r.bid, 40); assert.equal(r.bigBid, null);   // small jump: no alert
+  r.placeBid(a, 3, null, 900);                                            // jump of 860 lakh > 500
+  assert.equal(r.bid, 900); assert.equal(r.bigBid.team, a); assert.equal(r.bigBid.from, 40);
+  assert.equal(r.view(b, 3).current.big_bid.lock_remaining, 3);
+  throws(() => r.placeBid(b, 4, 5), /jumped/); throws(() => r.placeBid(b, 5, null, 950), /jumped/);
+  r.placeBid(b, 6.5, null, 950); assert.equal(r.holder, b);               // lock over
+  throws(() => r.placeBid(a, 7, null, 6000), /purse/);
+});
+test('trade keeps the rest of the XI in place', () => {
+  const r = mk(2); r.phase = 'auction'; const [a, b] = [...r.teams.keys()];
+  const names = ['Rishabh Pant', 'Mohammed Siraj', 'Jos Buttler']; sold(r, a, names); sold(r, b, ['Noor Ahmed']);
+  const ta = r.teams.get(a); ta.xi = names.map(pidOf); ta.captain = pidOf('Jos Buttler'); ta.impact = null; ta.saved = true;
+  const t = r.proposeTrade(a, b, [pidOf('Mohammed Siraj')], [pidOf('Noor Ahmed')], 0); r.respondTrade(b, t.id, true);
+  assert.deepEqual(ta.xi, [pidOf('Rishabh Pant'), pidOf('Jos Buttler')]); assert.equal(ta.captain, pidOf('Jos Buttler')); assert.equal(ta.saved, false);
+});

@@ -49,7 +49,7 @@ function handle(room, pid, m) {
     case 'back_to_lobby': return room.backToLobby(pid);
     case 'close_selection': return room.closeSelection(pid);
     case 'start_auction': return room.startAuction(pid, t);
-    case 'bid': return room.placeBid(pid, t, m.increment == null ? null : Number(m.increment));
+    case 'bid': return room.placeBid(pid, t, m.increment == null ? null : Number(m.increment), m.amount == null ? null : Number(m.amount));
     case 'not_interested': return room.notInterestedIn(pid);
     case 'next_pool': return room.chooseNextPool(pid, String(m.pool));
     case 'pause': return room.pause(pid, t);

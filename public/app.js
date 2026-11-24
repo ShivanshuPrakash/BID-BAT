@@ -60,7 +60,9 @@ const inviteUrl = (code) => `${location.origin}/?room=${code}`;
 let selTeam = 'all', selShowAll = false, selDraft = null, wishDraft = null, selTab = 'All', saveTimer = null, selSaved = true;
 let feed = [], feedSeq = 0, feedSeen = 0, feedInit = false, fPrev = { cur: null, holder: null, bid: 0, ni: 0, res: '' };
 const prevVals = {};
-let lineup = null, xiSig = '', xiSaving = false, lastMoved = null;
+let lastBigId = 0, bigLockUntil = 0, bigT = null;
+const locked = () => Date.now() < bigLockUntil;
+let lineup = null, xiBase = '', xiSig = '', xiSaving = false, lastMoved = null;
 let tdraft = { give: new Set(), get: new Set() }, counterOf = null;
 let wasLeft = false, wasRemoved = false, endArm = false, endT = null, rmArm = null, rmT = null;
 const rmBtn = (t) => (S && me === S.host_id && t.id !== me && !t.removed ? `<button class="btn sm ${rmArm === t.id ? 'armed' : 'danger'} rm" data-act="rmteam" data-tid="${t.id}" title="Remove this team from the auction (for example if they went offline)">${rmArm === t.id ? 'Click again to remove' : 'Remove'}</button>` : '');
@@ -241,10 +243,11 @@ function auctionHTML(host) {
       const bs = bidState();
       const btns = !c.holder_id
         ? `<button class="bidbtn" data-act="bid" ${!bs.ok || mine.purse < s.base_price ? 'disabled' : ''}><b>${money(s.base_price)}</b><span>Bid the base price</span></button>`
-        : s.increments.map((i) => `<button class="bidbtn" data-act="bid" data-inc="${i}" ${!bs.ok || mine.purse < c.bid + i ? 'disabled' : ''}><b>${money(c.bid + i)}</b><span>${incLabel(i)}</span></button>`).join('');
+        : s.increments.map((i) => `<button class="bidbtn" data-act="bid" data-inc="${i}" ${!bs.ok || locked() || mine.purse < c.bid + i ? 'disabled' : ''}><b>${money(c.bid + i)}</b><span>${incLabel(i)}</span></button>`).join('');
       const passed = c.not_interested.map((i) => T(i)).filter(Boolean);
       bottom = `<div class="amtrow">${holder ? badge(holder, 'lg') : ''}<div class="amt"><small>${holder ? 'Highest bid from ' + esc(holder.team_name) : 'No bids yet. Base price'}</small><span id="amtv" data-key="bid:${c.id}" data-roll="${holder ? c.bid : s.base_price}">${money(holder ? c.bid : s.base_price)}</span></div></div>
         <div class="bids">${btns}<button class="btn pass" data-act="pass" ${c.holder_id === me ? 'disabled' : ''}>Not interested</button></div>
+        <div class="cbid"><label class="f">Custom bid (Cr)<input type="number" inputmode="decimal" min="0" step="0.25" id="cb_amt" placeholder="e.g. 15" value="${esc(val('cb_amt', ''))}"></label><button class="btn pri fit" data-act="custombid" ${!bs.ok || locked() ? 'disabled' : ''}>Bid this amount</button><span class="sub">Type the total you want to bid, for example 15 for ₹15 Cr. Everyone gets an alert when the jump is big.</span></div>
         <p class="note">${bs.why ? `<b>${bs.why}</b> ` : ''}${passed.length ? 'Not interested: ' + passed.map((t) => esc(t.team_name)).join(', ') + '.' : 'Nobody has passed on this player yet.'}</p>`;
     }
     main = `<div class="lot ${S.step === 'bidding' && !S.paused ? 'live' : ''} ${c.wished ? 'wish' : ''}" id="lot" style="${hc ? `--hc:${hc}` : ''}">${S.paused ? '<span class="paused">Paused</span>' : ''}
@@ -304,7 +307,7 @@ const sortRole = (a, b) => ROLE_ORDER(a) - ROLE_ORDER(b) || a.name.localeCompare
 
 function lineupState(t) {
   const L = lineup, by = (id) => t.squad.find((p) => p.id === id);
-  const xi = L.xi.map(by).filter(Boolean).sort(sortRole), imp = L.imp ? by(L.imp) : null;
+  const xi = L.xi.map(by).filter(Boolean), imp = L.imp ? by(L.imp) : null;
   const bench = t.squad.filter((p) => !L.xi.includes(p.id) && p.id !== L.imp).sort(sortRole);
   const os = xi.filter((p) => p.overseas).length, keepersInXI = xi.filter((p) => p.wicketkeeper);
   const squadHasKeeper = t.squad.some((p) => p.wicketkeeper);
@@ -319,35 +322,48 @@ function lineupState(t) {
   const impBad = imp && imp.overseas && os >= 4;
   const valid = checks.every((c) => c.ok) && !impBad;
   const next = checks.find((c) => !c.ok);
-  const saved = JSON.stringify([[...t.xi].sort(), t.impact || null, t.captain || null, t.keeper || null]);
-  const cur = JSON.stringify([xi.map((p) => p.id).sort(), imp ? imp.id : null, cap, wk]);
+  const saved = JSON.stringify([t.xi, t.impact || null, t.captain || null, t.keeper || null]);
+  const cur = JSON.stringify([xi.map((p) => p.id), imp ? imp.id : null, cap, wk]);
   return { xi, imp, bench, os, wk, cap, checks, valid, impBad, next, dirty: saved !== cur, hasSaved: t.xi.length === 11 };
 }
 
+const POS = ['Opener', 'Opener', 'One down', 'Middle order', 'Middle order', 'Middle order', 'Lower order', 'Lower order', 'Tail', 'Tail', 'Tail'];
 function xcard(p, ctx, st, i) {
   const pop = p.id === lastMoved ? 'pop' : '', sub = `${esc(roleLabel(p))} · ${money(p.price)}`;
   const tag = p.overseas ? '<span class="tag os">OS</span>' : '';
   let act = '';
-  if (ctx === 'xi') act = `${p.wicketkeeper ? `<button class="xbtn k ${st.wk === p.id ? 'on' : ''}" data-act="xwk" data-id="${p.id}" title="Make wicketkeeper" aria-label="Make wicketkeeper">🧤</button>` : ''}
+  if (ctx === 'xi') act = `<button class="xbtn mv" data-act="xup" data-id="${p.id}" title="Move up the batting order" aria-label="Move up" ${i === 0 ? 'disabled' : ''}>▲</button><button class="xbtn mv" data-act="xdn" data-id="${p.id}" title="Move down the batting order" aria-label="Move down" ${i === st.xi.length - 1 ? 'disabled' : ''}>▼</button>${p.wicketkeeper ? `<button class="xbtn k ${st.wk === p.id ? 'on' : ''}" data-act="xwk" data-id="${p.id}" title="Make wicketkeeper" aria-label="Make wicketkeeper">🧤</button>` : ''}
       <button class="xbtn c ${st.cap === p.id ? 'on' : ''}" data-act="xcap" data-id="${p.id}" title="Make captain" aria-label="Make captain">C</button>
       <button class="xbtn" data-act="xrm" data-id="${p.id}" title="Move to bench" aria-label="Move to bench">✕</button>`;
   else if (ctx === 'bench') act = `<button class="xbtn imp" data-act="ximp" data-id="${p.id}" title="Make impact player" aria-label="Make impact player">⚡</button>`;
   else act = `<button class="xbtn" data-act="ximprm" data-id="${p.id}" title="Move to bench" aria-label="Move to bench">✕</button>`;
   return `<div class="xc ${ctx} ${pop}" draggable="true" data-pid="${p.id}" ${ctx === 'bench' ? `data-act="xadd" data-id="${p.id}"` : ''}>
     ${ctx === 'xi' ? `<span class="xn">${i + 1}</span>` : `<span class="xico">${roleIcon(p)}</span>`}
-    <div class="xm"><b>${esc(p.name)}${tag}</b><small>${ctx === 'xi' ? roleIcon(p) + ' ' : ''}${sub}</small></div>
+    <div class="xm"><b>${esc(p.name)}${tag}</b><small>${ctx === 'xi' ? `<b class="xpos">${POS[i]}</b> ` + roleIcon(p) + ' ' : ''}${sub}</small></div>
     <div class="xa">${act}</div></div>`;
 }
 
 function xiHTML() {
   const t = T(me);
   if (!t || !['auction', 'finished'].includes(S.phase) || !t.squad.length) return '';
-  const sig = JSON.stringify([t.xi, t.impact, t.captain, t.keeper, t.squad.map((p) => p.id)]);
-  if (!lineup || sig !== xiSig) {
-    if (lineup && xiSaving && t.xi.length === 11) { toast('Playing XI saved.'); }
-    xiSaving = false; xiSig = sig;
-    lineup = { xi: t.xi.filter((i) => t.squad.some((p) => p.id === i)), imp: t.impact || null, cap: t.captain || null, wk: t.keeper || null };
+  const srvSig = JSON.stringify([t.xi, t.impact, t.captain, t.keeper]), inSquad = (i) => t.squad.some((p) => p.id === i);
+  const fromServer = () => ({ xi: t.xi.filter(inSquad), imp: t.impact && inSquad(t.impact) ? t.impact : null, cap: t.captain || null, wk: t.keeper || null });
+  const draftSig = () => JSON.stringify([lineup.xi, lineup.imp, lineup.cap, lineup.wk]);
+  if (!lineup) {
+    let kept = null; try { kept = JSON.parse(localStorage.getItem('iplxi:' + S.code + ':' + me) || 'null'); } catch {}
+    lineup = kept && kept.xi ? { xi: kept.xi.filter(inSquad), imp: kept.imp && inSquad(kept.imp) ? kept.imp : null, cap: kept.cap, wk: kept.wk } : fromServer();
+    xiSig = srvSig; xiBase = JSON.stringify([fromServer().xi, fromServer().imp, fromServer().cap, fromServer().wk]);
+  } else if (srvSig !== xiSig) {                    // the server copy changed (you saved, or a trade removed someone)
+    const justSaved = xiSaving && t.xi.length === 11, wasClean = draftSig() === xiBase;
+    if (justSaved) toast('Playing XI saved.');
+    xiSaving = false; xiSig = srvSig;
+    if (wasClean || justSaved) lineup = fromServer();
+    xiBase = JSON.stringify([fromServer().xi, fromServer().imp, fromServer().cap, fromServer().wk]);
   }
+  // buying or losing players never resets your lineup: keep everyone who is still in the squad, new players just join the bench
+  lineup.xi = lineup.xi.filter(inSquad); if (lineup.imp && !inSquad(lineup.imp)) lineup.imp = null;
+  if (lineup.cap && !lineup.xi.includes(lineup.cap)) lineup.cap = null; if (lineup.wk && !lineup.xi.includes(lineup.wk)) lineup.wk = null;
+  try { localStorage.setItem('iplxi:' + S.code + ':' + me, JSON.stringify(lineup)); } catch {}
   const st = lineupState(t);
   const slots = Array.from({ length: Math.max(0, 11 - st.xi.length) }, (_, k) => `<div class="slot"><span class="xn ghost">${st.xi.length + k + 1}</span>Tap a bench player or drag one here</div>`).join('');
   const chk = st.checks.map((c) => `<span class="chk ${c.ok ? 'ok' : ''}"><i>${c.ok ? '✓' : ''}</i>${c.label}</span>`).join('') +
@@ -388,6 +404,27 @@ function lineupMove(pid, to) {
   lastMoved = pid; render(); setTimeout(() => { lastMoved = null; }, 600);
 }
 
+function lineupSwap(dragged, target) {
+  const t = T(me), L = lineup; if (dragged === target || !t.squad.some((p) => p.id === dragged) || !t.squad.some((p) => p.id === target)) return;
+  const A = L.xi.indexOf(dragged), B = L.xi.indexOf(target), pd = t.squad.find((p) => p.id === dragged), pt = t.squad.find((p) => p.id === target);
+  const osAfter = (inIds) => inIds.map((i) => t.squad.find((p) => p.id === i)).filter((p) => p && p.overseas).length;
+  if (A >= 0 && B >= 0) { [L.xi[A], L.xi[B]] = [L.xi[B], L.xi[A]]; }                                   // two XI players trade batting positions
+  else if (A < 0 && B >= 0) {                                                                           // bench or impact player takes the slot
+    const next = L.xi.slice(); next[B] = dragged;
+    if (osAfter(next) > 4) return toast('Only 4 overseas players can be in the playing XI.');
+    L.xi = next; if (L.imp === dragged) L.imp = target;                                                 // an impact player swaps places with the XI player
+    if (L.cap === target) L.cap = null; if (L.wk === target) L.wk = null;
+  } else if (A >= 0 && B < 0) {                                                                         // XI player swaps with a bench player
+    const next = L.xi.slice(); next[A] = target;
+    if (osAfter(next) > 4) return toast('Only 4 overseas players can be in the playing XI.');
+    L.xi = next; if (L.cap === dragged) L.cap = null; if (L.wk === dragged) L.wk = null;
+  } else return;
+  lastMoved = dragged; render(); setTimeout(() => { lastMoved = null; }, 600);
+}
+function lineupShift(pid, d) {
+  const L = lineup, i = L.xi.indexOf(pid), j = i + d; if (i < 0 || j < 0 || j >= L.xi.length) return;
+  [L.xi[i], L.xi[j]] = [L.xi[j], L.xi[i]]; lastMoved = pid; render(); setTimeout(() => { lastMoved = null; }, 600);
+}
 function suggestXI(t) {
   const sq = t.squad.slice().sort((a, b) => b.price - a.price), pick = [], has = (p) => pick.includes(p);
   const add = (p) => { if (p && !has(p) && pick.length < 11 && !(p.overseas && pick.filter((x) => x.overseas).length >= 4)) pick.push(p); };
@@ -545,7 +582,7 @@ function motion() {
   const c = S.current;
   if (c && S.step === 'bidding') {
     if (lastCur !== c.id) {
-      lastCur = c.id; lastBid = c.bid;
+      lastCur = c.id; lastBid = c.bid; if (c.big_bid) lastBigId = c.big_bid.id;
       if (c.wished) showWishFx(c); else hideWishFx();
       const n = document.getElementById('pname'), pc = document.getElementById('pcard'), ab = document.querySelector('#lot .abil');
       if (!reduce()) {
@@ -555,7 +592,8 @@ function motion() {
       }
     } else if (lastBid !== c.bid) {
       lastBid = c.bid;
-      if (c.holder_id && T(c.holder_id)) { showBidFx(T(c.holder_id), c.bid); hideWishFx(); }
+      if (c.big_bid && c.big_bid.id !== lastBigId && T(c.big_bid.team)) { lastBigId = c.big_bid.id; showBigBid(c.big_bid); hideWishFx(); }
+      else if (c.holder_id && T(c.holder_id)) { showBidFx(T(c.holder_id), c.bid); hideWishFx(); }
       const a = document.getElementById('amtv');
       if (a && !reduce()) { a.parentElement.classList.remove('bump'); void a.offsetWidth; a.parentElement.classList.add('bump'); }
     }
@@ -566,6 +604,49 @@ function motion() {
   }
 }
 
+function showBigBid(bb) {
+  const t = T(bb.team), el = $('#bigfx'), col = accentOf(t.color), lock = Math.max(1, bb.lock_remaining || 3);
+  bigLockUntil = Date.now() + lock * 1000; clearTimeout(bigT); bigT = setTimeout(() => { bigLockUntil = 0; if (S) render(); }, lock * 1000 + 50);
+  el.style.setProperty('--bc', col); el.style.setProperty('--bink', ink(col)); el.style.setProperty('--lock', lock + 's');
+  el.innerHTML = `<canvas id="rain"></canvas><div class="bb"><div class="bbt">${badge(t, 'lg')}<span>${t.id === me ? 'You made a big bid' : esc(t.team_name) + ' made a big bid'}</span></div>
+    <div class="bbk">NEW BID</div><div class="bba">${money(bb.to)}</div>
+    <div class="bbd">was ${money(bb.from)}<i>→</i>now ${money(bb.to)}<em>+${money(bb.to - bb.from)}</em></div></div>
+    <div class="bbw"><span>Price jumped. Check before you bid.</span><u></u></div>`;
+  el.classList.remove('go'); void el.offsetWidth; el.classList.add('go');
+  clearTimeout(showBigBid.t); showBigBid.t = setTimeout(() => { el.classList.remove('go'); el.innerHTML = ''; }, lock * 1000 + 600);
+  render(); coins(); thud(false);
+  if (!reduce()) moneyRain($('#rain'), lock * 1000 + 400);
+}
+function moneyRain(cv, ms) {
+  if (!cv) return;
+  const x = cv.getContext('2d'), W = cv.width = innerWidth, H = cv.height = innerHeight, N = innerWidth < 700 ? 28 : 46;
+  const P = Array.from({ length: N }, (_, i) => ({ x: Math.random() * W, y: -Math.random() * H * .8 - 30, v: 260 + Math.random() * 330, rot: Math.random() * 6.28, vr: (Math.random() - .5) * 6,
+    note: i % 3 !== 0, s: 0.8 + Math.random() * 0.7, sw: Math.random() * 6.28 }));
+  const t0 = performance.now(); let last = t0;
+  (function frame(now) {
+    const dt = Math.min(50, now - last) / 1000; last = now; x.clearRect(0, 0, W, H);
+    for (const p of P) {
+      p.y += p.v * dt; p.rot += p.vr * dt; p.sw += dt * 3; const px = p.x + Math.sin(p.sw) * 22;
+      x.save(); x.translate(px, p.y); x.rotate(p.rot);
+      if (p.note) {
+        const w = 56 * p.s, h = 28 * p.s; x.fillStyle = '#3f9d57'; x.fillRect(-w / 2, -h / 2, w, h); x.strokeStyle = '#b8f0c2'; x.lineWidth = 2; x.strokeRect(-w / 2 + 3, -h / 2 + 3, w - 6, h - 6);
+        x.fillStyle = '#d7ffe0'; x.font = `800 ${14 * p.s}px sans-serif`; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('₹', 0, 1);
+      } else { const r = 14 * p.s; x.fillStyle = '#f2c14e'; x.beginPath(); x.ellipse(0, 0, r, r * Math.abs(Math.cos(p.sw)) + 2, 0, 0, 6.283); x.fill(); x.strokeStyle = '#fff3b0'; x.lineWidth = 2; x.stroke(); }
+      x.restore();
+    }
+    if (now - t0 < ms && document.getElementById('rain') === cv) requestAnimationFrame(frame); else x.clearRect(0, 0, W, H);
+  })(t0);
+}
+function coins() {
+  if (!soundOn) return;
+  try {
+    audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+    const ac = audio, t = ac.currentTime;
+    for (let k = 0; k < 9; k++) { const o = ac.createOscillator(), g = ac.createGain(), at = t + 0.05 + k * 0.11 + Math.random() * 0.04;
+      o.type = 'square'; o.frequency.setValueAtTime(1800 + Math.random() * 900, at); g.gain.setValueAtTime(.0001, at); g.gain.exponentialRampToValueAtTime(.07, at + .006); g.gain.exponentialRampToValueAtTime(.0001, at + .16);
+      o.connect(g).connect(ac.destination); o.start(at); o.stop(at + .18); }
+  } catch {}
+}
 function showBidFx(t, amt) {
   const b = $('#bidfx'), col = accentOf(t.color);
   b.style.setProperty('--bc', col); b.style.setProperty('--bink', ink(col));
@@ -687,6 +768,10 @@ document.addEventListener('click', (e) => {
     }
     case 'rejoin': {
       wasLeft = false; try { sessionStorage.removeItem('iplhome'); } catch {} const s = store.get('ipl'); return connect({ action: 'rejoin', code: s.code, token: s.token }); }
+    case 'custombid': {
+      const cr = parseFloat(el$('cb_amt').value); if (!(cr > 0)) return toast('Type an amount in Cr, for example 15.');
+      send({ action: 'bid', amount: Math.round(cr * 100) }); draft.cb_amt = ''; el$('cb_amt').value = ''; return;
+    }
     case 'sound': soundOn = !soundOn; store.set('iplsound', soundOn); if (soundOn) thud(false); return render();
     case 'savesettings': return send({ action: 'update_settings', settings: readSettings() });
     case 'startsel': send({ action: 'update_settings', settings: readSettings() }); return setTimeout(() => send({ action: 'start_selection' }), 150);
@@ -711,6 +796,8 @@ document.addEventListener('click', (e) => {
       endArm = false; clearTimeout(endT); return send({ action: 'end_auction' });
     case 'bid': return send({ action: 'bid', increment: el.dataset.inc ? +el.dataset.inc : null });
     case 'pass': return send({ action: 'not_interested' });
+    case 'xup': return lineupShift(id, -1);
+    case 'xdn': return lineupShift(id, 1);
     case 'xadd': return lineupMove(id, 'xi');
     case 'xrm': return lineupMove(id, 'bench');
     case 'ximp': return lineupMove(id, 'imp');
@@ -758,4 +845,10 @@ let dragId = null;
 document.addEventListener('dragstart', (e) => { const c = e.target.closest && e.target.closest('.xc'); if (!c) return; dragId = +c.dataset.pid; c.classList.add('dragging'); try { e.dataTransfer.setData('text/plain', String(dragId)); e.dataTransfer.effectAllowed = 'move'; } catch {} });
 document.addEventListener('dragend', () => { dragId = null; document.querySelectorAll('.dragging,.over').forEach((x) => x.classList.remove('dragging', 'over')); });
 document.addEventListener('dragover', (e) => { const z = e.target.closest && e.target.closest('.xzone'); if (!z || dragId == null) return; e.preventDefault(); document.querySelectorAll('.xzone.over').forEach((x) => x !== z && x.classList.remove('over')); z.classList.add('over'); });
-document.addEventListener('drop', (e) => { const z = e.target.closest && e.target.closest('.xzone'); if (!z || dragId == null) return; e.preventDefault(); const id = dragId; dragId = null; document.querySelectorAll('.over').forEach((x) => x.classList.remove('over')); lineupMove(id, z.dataset.zone); });
+document.addEventListener('drop', (e) => {
+  const z = e.target.closest && e.target.closest('.xzone'); if (!z || dragId == null) return; e.preventDefault();
+  const id = dragId; dragId = null; document.querySelectorAll('.over').forEach((x) => x.classList.remove('over'));
+  const card = e.target.closest('.xc');
+  if (card && +card.dataset.pid !== id && (z.dataset.zone === 'xi' || card.classList.contains('bench') || card.classList.contains('imp'))) return lineupSwap(id, +card.dataset.pid);
+  lineupMove(id, z.dataset.zone);
+});

@@ -69,3 +69,10 @@ In the waiting room the host sees an invite link (`http://<address>/?room=CODE`)
 ## Going back
 - **⌂ Home** (top bar) or the BID&BAT logo: leave to the home screen, then use "Rejoin room" to return.
 - **← Back to waiting room** (host, during player selection): returns everyone to the waiting room. Picks are cleared, teams and settings stay. Once the auction has started it cannot be rewound; use Pause, End auction or Remove team instead.
+
+## Bidding rules added
+- **Early sale:** when every other team has passed (or cannot bid any more), the top bidder wins at once without waiting for the timer. If nobody bids and everyone passes, the player goes unsold.
+- **Custom bid:** type an amount in Cr (for example 15) in the Custom bid box and press "Bid this amount". It must be higher than the current bid by at least the smallest bid step, and within your purse. A jump of more than 5 Cr triggers a full-screen "NEW BID" alert with money rain, and all bid buttons are locked for 3 seconds so nobody taps +1 Cr by accident. Constants: `BIG_JUMP` and `BIG_LOCK` in `src/engine.js`.
+
+## Playing XI order
+The XI is a batting order: slots 1 and 2 open. Drag a player onto another to swap, use the ▲ ▼ buttons to move, and drag a bench player onto an XI slot to replace the player there. Buying players or trading never resets your lineup; new players join the bench and traded-away players leave the XI. Your unsaved lineup is also remembered if you reload.

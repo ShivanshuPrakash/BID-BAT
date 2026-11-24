@@ -8,6 +8,7 @@ const rating = require('./rating');
 
 const POOLS = ['Batsman', 'Bowler', 'All-rounder', 'Spinner'];
 const SQUAD_SIZES = [12, 15, 25];
+const BIG_JUMP = 500, BIG_LOCK = 3;   // lakh above the current price, and seconds of lock after such a bid
 const RESULT_GAP = 3.0;
 const FRANCHISES = {
   CSK:  { name: 'Chennai Super Kings',         c1: '#F9CD05', c2: '#0A4DA2' },
@@ -67,6 +68,7 @@ class Room {
     this.hostId = '';
     this.selectionDeadline = 0;
     this.pool = []; this.queue = []; this.unsold = []; this.soldLog = [];
+    this.bigSeq = 0; this.bigBid = null; this.lockUntil = 0;
     this.current = null; this.bid = 0; this.holder = null; this.notInterested = new Set();
     this.deadline = 0; this.paused = false; this.remainingOnPause = 0;
     this.step = 'idle'; // idle | bidding | result | pools_done
@@ -189,7 +191,7 @@ class Room {
     if (this.allFull()) return this.finish();
     if (this.queue.length) {
       this.current = this.queue.shift();
-      this.bid = 0; this.holder = null; this.notInterested = new Set();
+      this.bid = 0; this.holder = null; this.notInterested = new Set(); this.bigBid = null; this.lockUntil = 0;
       this.step = 'bidding'; this.result = null; this.paused = false;
       this.deadline = now + this.settings.bid_timer;
       if (!this.eligible(P(this.current)).length) this.resolve(now);
@@ -203,23 +205,31 @@ class Room {
     if (player.overseas && t.overseasCount() >= this.settings.max_overseas) fail('Overseas limit reached');
     if (amount > t.purse) fail('Not enough purse for this bid');
   }
-  placeBid(pid, now, increment = null) {
+  /** increment = one of the preset steps; amount = a custom total in lakh. A custom jump above BIG_JUMP triggers the big-bid alert and a short lock. */
+  placeBid(pid, now, increment = null, amount = null) {
     if (this.phase !== 'auction' || this.step !== 'bidding') fail('No player is up for bidding');
     if (this.paused) fail('Auction is paused');
     if (now >= this.deadline) fail('Time is up for this player');
+    if (now < this.lockUntil) fail('The price just jumped. Bidding reopens in a moment');
     const t = this.teams.get(pid), player = P(this.current);
     if (t.removed) fail('You were removed from this auction');
     if (this.holder === pid) fail('You already hold the highest bid');
-    let amount;
-    if (this.holder === null) amount = this.settings.base_price;
+    const prev = this.holder === null ? this.settings.base_price : this.bid, minStep = Math.min(...this.settings.increments);
+    let bidAmt;
+    if (amount != null) {
+      bidAmt = Math.round(Number(amount));
+      if (!Number.isFinite(bidAmt)) fail('Enter a valid amount');
+      if (this.holder === null ? bidAmt < prev : bidAmt < prev + minStep) fail(`Your bid must be at least ${this.holder === null ? prev : prev + minStep} lakh`);
+    } else if (this.holder === null) bidAmt = prev;
     else {
       if (!this.settings.increments.includes(increment)) fail('Invalid bid increment');
-      amount = this.bid + increment;
+      bidAmt = prev + increment;
     }
-    this.checkBidder(t, player, amount);
-    this.bid = amount; this.holder = pid;
+    this.checkBidder(t, player, bidAmt);
+    this.bid = bidAmt; this.holder = pid;
     this.notInterested.delete(pid);
     this.deadline = now + this.settings.bid_timer;
+    if (bidAmt - prev > BIG_JUMP) { this.bigBid = { id: ++this.bigSeq, team: pid, from: prev, to: bidAmt }; this.lockUntil = now + BIG_LOCK; }
   }
   notInterestedIn(pid) {
     if (this.phase !== 'auction' || this.step !== 'bidding') fail('No player is up for bidding');
@@ -259,6 +269,11 @@ class Room {
       if (this.holder === null) {
         const voters = this.eligible(P(this.current));
         if (!voters.length || voters.every((p) => this.notInterested.has(p))) { this.resolve(now); return true; }
+      }
+      if (this.holder !== null && now >= this.lockUntil) {   // everyone else has passed or cannot bid: the holder wins now
+        const minStep = Math.min(...this.settings.increments), pl = P(this.current);
+        const rivals = [...this.teams.values()].filter((t) => t.pid !== this.holder && !t.removed && !this.notInterested.has(t.pid) && this.canBidEver(t, pl) && t.purse >= this.bid + minStep);
+        if (!rivals.length) { this.resolve(now); return true; }
       }
       if (now >= this.deadline) { this.resolve(now); return true; }
     } else if (this.step === 'result' && now >= this.nextAt) { this.nextPlayer(now); return true; }
@@ -365,7 +380,10 @@ class Room {
     a.purse -= tr.cash; b.purse += tr.cash;
     a.saved = b.saved = false;
     for (const t of [a, b]) {
-      if (t.xi.some((i) => !t.squad.has(i)) || (t.impact != null && !t.squad.has(t.impact))) Object.assign(t, { xi: [], impact: null, captain: null, keeper: null });
+      t.xi = t.xi.filter((i) => t.squad.has(i));                  // traded-away players leave the XI; everyone else keeps their slot
+      if (t.impact != null && !t.squad.has(t.impact)) t.impact = null;
+      if (t.captain != null && !t.squad.has(t.captain)) t.captain = null;
+      if (t.keeper != null && !t.squad.has(t.keeper)) t.keeper = null;
     }
     tr.status = 'accepted';
     for (const o of this.trades.values()) if (o !== tr && o.status === 'pending') { try { this.checkTrade(o); } catch (e) { if (e instanceof GameError) o.status = 'cancelled'; else throw e; } }
@@ -391,6 +409,7 @@ class Room {
     if (this.current != null) {
       const remaining = this.paused ? this.remainingOnPause : Math.max(0, this.deadline - now);
       cur = { ...pl(this.current), bid: this.bid, holder: this.holder ? this.teams.get(this.holder).teamName : null,
+        big_bid: this.bigBid ? { ...this.bigBid, team_name: this.teams.get(this.bigBid.team).teamName, lock_remaining: Math.max(0, Math.round((this.lockUntil - now) * 10) / 10) } : null,
         holder_id: this.holder, remaining: Math.round(remaining * 10) / 10, not_interested: [...this.notInterested].sort(),
         wished: !!(this.teams.get(viewer) && this.teams.get(viewer).wishlist.has(this.current)) };
     }
