@@ -172,7 +172,7 @@ function render() {
 function settingsSummary() {
   const s = S.settings, p = (x) => `<span class="pill">${x}</span>`;
   return `<div class="meta" style="gap:8px">${s.ground ? p('🏟️ ' + esc(s.ground)) : ''}${s.state && !s.ground ? p(esc(s.state)) : ''}${s.conditions ? p(esc(s.conditions)) : ''}
-    ${p('Purse ' + money(s.purse))}${p('Base ' + money(s.base_price))}${p('Squad of ' + s.squad_size)}${p('Overseas max ' + s.max_overseas)}${p('Timer ' + s.bid_timer + 's')}${p(s.pool_order.join(' → '))}</div>`;
+    ${p('Purse ' + money(s.purse))}${p('Base ' + money(s.base_price))}${p('Squad of ' + s.squad_size)}${p('Overseas max ' + s.max_overseas)}${p('Timer ' + s.bid_timer + 's')}${p(s.mix ? 'Mixed order (surprise)' : s.pool_order.join(' → '))}</div>`;
 }
 
 // who is still in this lot: purse, squad size and status for every team
@@ -213,7 +213,8 @@ function lobbyHTML(host) {
       <div class="row" style="margin-top:12px"><label class="f">Squad size<select id="s_sq">${[12, 15, 25].map((n) => `<option ${+val('s_sq', s.squad_size) === n ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
         <label class="f">Max overseas per squad<input type="number" id="s_os" min="0" value="${val('s_os', s.max_overseas)}"></label>
         <label class="f">Player selection time (seconds)<input type="number" id="s_win" min="10" value="${val('s_win', s.selection_window)}"></label></div>
-      <div class="row" style="margin-top:12px">${po(0)}${po(1)}${po(2)}${po(3)}</div>
+      <div class="row" style="margin-top:12px"><label class="f">Auction order<select id="s_mix"><option value="0" ${!+val('s_mix', s.mix ? 1 : 0) ? 'selected' : ''}>Pool by pool (I choose the order)</option><option value="1" ${+val('s_mix', s.mix ? 1 : 0) ? 'selected' : ''}>Mix (all players jumbled, a surprise)</option></select></label></div>
+      <div class="row" style="margin-top:12px;${+val('s_mix', s.mix ? 1 : 0) ? 'opacity:.4;pointer-events:none' : ''}">${po(0)}${po(1)}${po(2)}${po(3)}</div>
       <div class="rule"></div><h2>Match venue</h2>
       <div class="row"><label class="f">State${sel('s_st', st, Object.keys(VENUES), 'Select a state')}</label>
         <label class="f">Ground${sel('s_g', val('s_g', s.ground), grounds, st ? 'Select a ground' : 'Choose a state first', !st)}</label>
@@ -275,12 +276,12 @@ function auctionHTML(host) {
         : s.increments.map((i) => `<button class="bidbtn" data-act="bid" data-inc="${i}" ${!bs.ok || locked() || mine.purse < c.bid + i ? 'disabled' : ''}><b>${money(c.bid + i)}</b><span>${incLabel(i)}</span></button>`).join('');
       const passed = c.not_interested.map((i) => T(i)).filter(Boolean);
       bottom = `<div class="amtrow">${holder ? badge(holder, 'lg') : ''}<div class="amt"><small>${holder ? 'Highest bid from ' + esc(holder.team_name) : 'No bids yet. Base price'}</small><span id="amtv" data-key="bid:${c.id}" data-roll="${holder ? c.bid : s.base_price}">${money(holder ? c.bid : s.base_price)}</span></div></div>
-        <div class="bids">${btns}<button class="btn pass" data-act="pass" ${c.holder_id === me ? 'disabled' : ''}>Not interested</button></div>
-        <div class="cbid"><label class="f">Custom bid (Cr)<input type="number" inputmode="decimal" min="0" step="0.25" id="cb_amt" placeholder="e.g. 15" value="${esc(val('cb_amt', ''))}"></label><button class="btn pri fit" data-act="custombid" ${!bs.ok || locked() ? 'disabled' : ''}>Bid this amount</button><span class="sub">Type the total you want to bid, for example 15 for ₹15 Cr. Everyone gets an alert when the jump is big.</span></div>
+        <div class="bids">${btns}</div>
+        <div class="cbid"><label class="f">Custom bid (Cr)<input type="text" inputmode="decimal" autocomplete="off" id="cb_amt" placeholder="e.g. 15" value="${esc(val('cb_amt', ''))}"></label><button class="btn pri fit" data-act="custombid" ${!bs.ok || locked() ? 'disabled' : ''}>Bid this amount</button><span class="sub">Type the total you want to bid, for example 15 for ₹15 Cr. Everyone gets an alert when the jump is big.</span></div>
         <p class="note">${bs.why ? `<b>${bs.why}</b> ` : ''}${passed.length ? 'Not interested: ' + passed.map((t) => esc(t.team_name)).join(', ') + '.' : 'Nobody has passed on this player yet.'}</p>`;
     }
     main = `<div class="lot ${S.step === 'bidding' && !S.paused ? 'live' : ''} ${c.wished ? 'wish' : ''}" id="lot" style="${hc ? `--hc:${hc}` : ''}">${S.paused ? '<span class="paused">Paused</span>' : ''}
-      <div class="grid">${portrait(c)}<div style="min-width:0"><div class="meta"><span class="tag type">${c.type}</span>${c.overseas ? '<span class="tag os" style="margin-left:0">Overseas</span>' : ''}${c.wicketkeeper ? '<span class="tag wk" style="margin-left:0">Wicketkeeper</span>' : ''}${c.wished ? '<span class="tag star">★ On your wishlist</span>' : ''}<span class="sub" style="margin-left:4px">${S.queue_left} more to come</span></div>
+      <div class="grid"><div class="pcol">${portrait(c)}${r ? '' : `<button class="btn pass" data-act="pass" ${c.holder_id === me ? 'disabled' : ''}>Not interested</button>`}</div><div style="min-width:0"><div class="meta"><span class="tag type">${c.type}</span>${c.overseas ? '<span class="tag os" style="margin-left:0">Overseas</span>' : ''}${c.wicketkeeper ? '<span class="tag wk" style="margin-left:0">Wicketkeeper</span>' : ''}${c.wished ? '<span class="tag star">★ On your wishlist</span>' : ''}<span class="sub" style="margin-left:4px">${S.queue_left} more to come</span></div>
         <div class="pname" id="pname">${esc(c.name)}</div>${abilities(c)}${bottom}</div>
         ${r ? '' : `<div class="ringwrap"><svg class="ring" viewBox="0 0 120 120"><circle class="rt" cx="60" cy="60" r="52"/><circle class="rp" id="ring" cx="60" cy="60" r="52" stroke-dasharray="326.73" stroke-dashoffset="0" transform="rotate(-90 60 60)"/></svg><div class="rn" id="tm">${Math.ceil(c.remaining)}</div></div>`}</div></div>`;
   } else if (S.step === 'pools_done') {
@@ -289,8 +290,8 @@ function auctionHTML(host) {
       ${host ? `<div class="row"><button class="btn pri fit" data-act="reauc" ${S.unsold.length ? '' : 'disabled'}>Re-auction the unsold players</button><button class="btn ${endArm ? 'armed' : 'danger'} fit" data-act="endauc">${endArm ? 'Click again to end' : 'End auction'}</button></div>` : '<p class="sub">Waiting for the host to continue.</p>'}</div>`;
   }
   const ctl = host && S.step === 'bidding' ? `<div style="margin-bottom:12px">${S.paused ? '<button class="btn ok sm" data-act="resume">Resume bidding</button>' : '<button class="btn sm" data-act="pause">Pause bidding</button>'}</div>` : '';
-  const pools = `<div class="panel poolbar"><span class="sub">Pools left</span>${s.pool_order.map((p) => `<button class="pchip ${S.next_pool === p ? 'on' : ''}" data-act="nextpool" data-pool="${p}" ${!host || !S.pools_left[p] ? 'disabled' : ''}>${p}<b>${S.pools_left[p]}</b>${S.next_pool === p ? '<em>up next</em>' : ''}</button>`).join('')}
-    ${host ? '<span class="sub">Tap a pool to bring it forward. The player on stage is not interrupted.</span>' : ''}</div>`;
+  const pools = `<div class="panel poolbar"><span class="sub">${s.mix ? 'Mixed order. Players left by type' : 'Pools left'}</span>${s.pool_order.map((p) => `<button class="pchip ${!s.mix && S.next_pool === p ? 'on' : ''}" data-act="nextpool" data-pool="${p}" ${!host || !S.pools_left[p] ? 'disabled' : ''}>${p}<b>${S.pools_left[p]}</b>${!s.mix && S.next_pool === p ? '<em>up next</em>' : ''}</button>`).join('')}
+    ${host ? '<span class="sub">Tap a type to bring it forward. The player on stage is not interrupted.</span>' : ''}</div>`;
   return `<div class="panel" style="padding:14px 18px">${settingsSummary()}</div>${pools}
     <div class="stage"><div>${ctl}${S.step === 'bidding' && S.current ? teamBar(S.current, s) : ''}${main}</div><div class="rail"><div class="panel" style="margin-top:0"><h2>Purses</h2>${purses}</div>${wl}<div class="panel"><h2>Live activity</h2><div class="log feed">${feedHTML}</div></div></div></div>`;
 }
@@ -754,12 +755,14 @@ function fireHammer(r) {
 // ---------- input handling ----------
 document.addEventListener('input', (e) => {
   const id = e.target.id; if (!id) return;
+  if (id === 'cb_amt') { const v = e.target.value.replace(/[^0-9.,]/g, ''); if (v !== e.target.value) e.target.value = v; }
   draft[id] = e.target.value;
   if (id === 'q') { cache.stage = null; render(); }
 });
 document.addEventListener('change', (e) => {
   const id = e.target.id; if (!id) return;
   draft[id] = e.target.value;
+  if (id === 's_mix') { cache.stage = null; render(); }
   if (id === 's_st') { draft.s_g = ''; cache.stage = null; render(); }
   if (id === 'selteam') { selTeam = e.target.value; selShowAll = false; cache.stage = null; render(); }
   if (id === 't_to') { tdraft.get.clear(); render(); }
@@ -774,7 +777,7 @@ const toggle = (set, id) => (set.has(id) ? set.delete(id) : set.add(id));
 function readSettings() {
   return { purse: Math.round(parseFloat(el$('s_purse').value) * 100), base_price: Math.round(parseFloat(el$('s_base').value) * 100), bid_timer: +el$('s_timer').value,
     increments: el$('s_inc').value.split(',').map((x) => +x.trim()).filter((x) => x > 0), squad_size: +el$('s_sq').value, max_overseas: +el$('s_os').value,
-    selection_window: +el$('s_win').value, pool_order: [0, 1, 2, 3].map((i) => el$('p' + i).value), state: el$('s_st').value, ground: el$('s_g').value, conditions: el$('s_cond').value };
+    selection_window: +el$('s_win').value, mix: el$('s_mix').value === '1', pool_order: [0, 1, 2, 3].map((i) => el$('p' + i).value), state: el$('s_st').value, ground: el$('s_g').value, conditions: el$('s_cond').value };
 }
 
 document.addEventListener('click', (e) => {
@@ -806,7 +809,7 @@ document.addEventListener('click', (e) => {
     case 'rejoin': {
       wasLeft = false; try { sessionStorage.removeItem('iplhome'); } catch {} const s = store.get('ipl'); return connect({ action: 'rejoin', code: s.code, token: s.token }); }
     case 'custombid': {
-      const cr = parseFloat(el$('cb_amt').value); if (!(cr > 0)) return toast('Type an amount in Cr, for example 15.');
+      const cr = parseFloat(String(el$('cb_amt').value).replace(',', '.')); if (!(cr > 0)) return toast('Type an amount in Cr, for example 15.');
       send({ action: 'bid', amount: Math.round(cr * 100) }); draft.cb_amt = ''; el$('cb_amt').value = ''; return;
     }
     case 'sound': soundOn = !soundOn; store.set('iplsound', soundOn); if (soundOn) thud(false); return render();
@@ -888,4 +891,8 @@ document.addEventListener('drop', (e) => {
   const card = e.target.closest('.xc');
   if (card && +card.dataset.pid !== id && (z.dataset.zone === 'xi' || card.classList.contains('bench') || card.classList.contains('imp'))) return lineupSwap(id, +card.dataset.pid);
   lineupMove(id, z.dataset.zone);
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && e.target && e.target.id === 'cb_amt') { e.preventDefault(); const b = document.querySelector('[data-act="custombid"]'); if (b && !b.disabled) b.click(); }
 });

@@ -77,6 +77,9 @@ In the waiting room the host sees an invite link (`http://<address>/?room=CODE`)
 ## Playing XI order
 The XI is a batting order: slots 1 and 2 open. Drag a player onto another to swap, use the ▲ ▼ buttons to move, and drag a bench player onto an XI slot to replace the player there. Buying players or trading never resets your lineup; new players join the bench and traded-away players leave the XI. Your unsaved lineup is also remembered if you reload.
 
+## Auction order
+Host can pick **Mix** to jumble every selected player into one random order (a surprise), or keep pool by pool.
+
 ## Look & feel additions
 - **Jersey cards**: each player is a shirt in his team's colours with the surname on the back.
 - **Team bid bar**: above the lot, every team's purse and squad count; the leading bidder is highlighted, teams that can't bid (squad full, overseas limit, low purse, passed) are greyed with the reason.

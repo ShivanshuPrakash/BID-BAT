@@ -59,7 +59,7 @@ class Team {
 class Room {
   constructor(hostName, teamName, settings = {}, color) {
     const s = { purse: 12000, base_price: 100, bid_timer: 15, increments: [100, 250, 500], squad_size: 15, max_overseas: 8,
-      selection_window: 120, pool_order: [...POOLS], ground: '', state: '', conditions: '', ...settings };
+      selection_window: 120, pool_order: [...POOLS], mix: false, ground: '', state: '', conditions: '', ...settings };
     Room.validateSettings(s);
     this.settings = s;
     this.code = roomCode();
@@ -167,6 +167,7 @@ class Room {
   }
   buildQueue(ids) {
     const q = [];
+    if (this.settings.mix) { this.queue = shuffle([...ids]); return; }
     for (const pool of this.settings.pool_order) q.push(...shuffle(ids.filter((i) => P(i).type === pool)));
     this.queue = q;
   }
