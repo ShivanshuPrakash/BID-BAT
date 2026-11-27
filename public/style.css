@@ -521,3 +521,19 @@ body.hot:after{content:"";position:fixed;inset:0;z-index:2;pointer-events:none;b
 .badge.logo img{width:100%;height:100%;object-fit:cover;display:block}
 .tile .badge.logo{width:46px;min-width:46px;height:46px}
 .frflag img.frmark{border-radius:50%}
+
+/* Kohli: throne reveal */
+.frepic{position:absolute;inset:0;display:grid;place-items:center;opacity:0;animation:epicin 1s ease-out 1.1s forwards}
+.frepic img{height:100%;max-width:100%;object-fit:cover;object-position:center 28%;box-shadow:0 0 120px rgba(245,197,66,.45);animation:epiczoom 6s ease-out forwards}
+@media(min-aspect-ratio:1/1){.frepic img{height:100vh;width:auto;max-width:92vw;border-radius:0}}
+@keyframes epicin{from{opacity:0}to{opacity:1}}
+@keyframes epiczoom{from{transform:scale(1.18)}to{transform:scale(1)}}
+.frring{position:absolute;left:50%;top:44%;width:150vmax;height:150vmax;margin:-75vmax;border-radius:50%;border:3px solid #f5c542;box-shadow:0 0 40px #f5c542,inset 0 0 40px #f5c542;opacity:0;animation:ring 1.4s ease-out 1.2s forwards;pointer-events:none}
+@keyframes ring{0%{opacity:.95;transform:scale(.02)}100%{opacity:0;transform:scale(1)}}
+.frttl{position:absolute;left:0;right:0;top:5%;text-align:center;font:900 clamp(40px,8vw,92px)/.95 var(--disp);letter-spacing:.14em;text-transform:uppercase;color:#f5c542;text-shadow:0 0 40px rgba(245,197,66,.7),0 4px 0 rgba(0,0,0,.5);opacity:0;animation:ttl .9s cubic-bezier(.2,1.2,.4,1) 1.5s forwards}
+.frttl small{display:block;font-size:.42em;letter-spacing:.5em;color:#fff;margin-bottom:6px}
+@keyframes ttl{from{opacity:0;letter-spacing:.7em}to{opacity:1;letter-spacing:.14em}}
+.frcard.ep{justify-content:flex-end;padding-bottom:6vh;background:linear-gradient(0deg,rgba(0,0,0,.85) 0,rgba(0,0,0,.45) 28%,transparent 50%)}
+.frcard.ep .frst{animation-delay:2.2s}
+.frcard.ep .frst .w{color:#f5c542;text-shadow:0 0 60px rgba(245,197,66,.8),0 6px 0 rgba(0,0,0,.45);font-size:clamp(60px,13vw,120px)}
+@media(prefers-reduced-motion:reduce){.frepic,.frring,.frttl{animation:none!important;opacity:1}}

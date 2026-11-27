@@ -96,3 +96,7 @@ Host can pick **Mix** to jumble every selected player into one random order (a s
 - A flag picture can be set per team in `public/flags/<CODE>.jpg`; Punjab uses its own picture. Teams without one get a flag in their colours with the logo.
 - Players who pick an IPL franchise get a longer SOLD animation: waving flag, brick wall breaking, jersey with initials, SOLD stamp and confetti. Custom teams keep the hammer. It is skipped when the system asks for reduced motion.
 - Team report sections show a short summary with a **Read more** button that opens the full strengths and concerns.
+
+## Player photos and the Kohli moment
+- Put a player photo in `public/photos/<player-name>.jpg` (lower-case, hyphens, e.g. `virat-kohli.jpg`). It replaces the jersey on his auction card. Virat Kohli's photo is already included.
+- Virat Kohli has a special sold animation for any team: the throne picture (`public/epic/virat-kohli.jpg`), "The King" title, a gold shockwave, a counting price and fireworks. The pause after his sale is longer (6.6 s). To add another player, add him to `EPIC` in `src/engine.js` and `public/app.js` with a picture in `public/epic/`.

@@ -738,9 +738,10 @@ function thud(sold) {
 
 function fireHammer(r) {
   const tm = r.status === 'SOLD' ? T(r.team_id) : null;
-  if (tm && tm.franchise && FR[tm.franchise] && !reduce()) return fireFranchise(r, tm);
+  const epic = tm && EPIC[r.player.name];
+  if (tm && !reduce() && (epic || (tm.franchise && FR[tm.franchise]))) return fireFranchise(r, tm, epic);
   const sold = r.status === 'SOLD', t = sold ? T(r.team_id) : null, col = t ? accentOf(t.color) : '#9aa0b4', fx = $('#fx'), rm = reduce();
-  clearTimeout(fireHammer.a); clearTimeout(fireHammer.b); clearTimeout(fireHammer.c);
+  clearInterval(fireHammer.a); clearTimeout(fireHammer.b); clearTimeout(fireHammer.c);
   fx.className = sold ? '' : 'unsold';
   fx.innerHTML = `<div class="fx-stage" style="--fc:${col}"><div class="fx-stamp"><div class="w">${sold ? 'Sold' : 'Unsold'}</div><div class="n">${esc(r.player.name)}</div>
     ${sold && t ? `<div class="p">${badge(t, 'sm')}<span>${esc(r.team)} for ${money(r.price)}</span></div>` : ''}</div>
@@ -784,16 +785,19 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeRk();
 
 // ---------- franchise sold animation: flag, wall breaks, jersey and SOLD ----------
 let frRaf = 0;
-function fireFranchise(r, t) {
-  const fx = $('#fx'), f = FR[t.franchise], c1 = f.c1, c2 = f.c2, col = accentOf(t.color);
+const EPIC = { 'Virat Kohli': { img: '/epic/virat-kohli.jpg', title: 'The King', sub: '18' } };
+function fireFranchise(r, t, epic) {
+  const fx = $('#fx'), f = FR[t.franchise] || { c1: t.color, c2: t.color2 || t.color, logo: '', flag: '' }, c1 = f.c1, c2 = f.c2, col = accentOf(t.color);
+  const END = epic ? 6000 : 3500;
   cancelAnimationFrame(frRaf); clearTimeout(fireHammer.a); clearTimeout(fireHammer.b); clearTimeout(fireHammer.c);
   const flag = f.flag ? `<div class="frflag img" style="background-image:url(${f.flag})"></div>`
     : `<div class="frflag" style="background:linear-gradient(135deg,${c1},${c2})">${f.logo ? `<img class="frmark" src="${f.logo}" alt="">` : `<b class="frmark">${esc(t.franchise)}</b>`}</div>`;
   fx.className = 'fr';
   fx.innerHTML = `<div class="frx" style="--fc:${col}">${flag}<div class="frsheen"></div><canvas id="frc"></canvas>
-    <div class="frcard"><div class="frj">${jersey(r.player, c1, c2)}</div>
+    ${epic ? `<div class="frepic"><img src="${epic.img}" alt=""></div><div class="frring"></div><div class="frttl"><small>${esc(epic.sub)}</small>${esc(epic.title)}</div>` : ''}
+    <div class="frcard${epic ? ' ep' : ''}">${epic ? '' : `<div class="frj">${jersey(r.player, c1, c2)}</div>`}
       <div class="frst"><div class="w">Sold</div><div class="n">${esc(r.player.name)}</div>
-      <div class="p">${badge(t, 'sm')}<span>${esc(r.team)} for ${money(r.price)}</span></div></div></div></div>`;
+      <div class="p">${badge(t, 'sm')}<span>${esc(r.team)} for <b id="frprice">${epic ? money(0) : money(r.price)}</b></span></div></div></div></div>`;
   fx.classList.add('on');
   const cv = document.getElementById('frc'), W = innerWidth, H = innerHeight, small = W < 700;
   cv.width = W; cv.height = H; const g = cv.getContext('2d');
@@ -802,10 +806,10 @@ function fireFranchise(r, t) {
     const mx = x + bw / 2 - cx, my = y + bh / 2 - cy, d = Math.hypot(mx, my) || 1;
     bricks.push({ x, y, d, vx: mx / d * (5 + Math.random() * 7), vy: my / d * (5 + Math.random() * 7) - 4, vr: (Math.random() - .5) * .35, r: 0, sh: 0.8 + Math.random() * 0.35 });
   }
-  const conf = []; const cols = [col, c1, c2, '#ffffff'];
-  const BREAK = 600, T0 = performance.now();
+  const conf = [], sparks = []; const cols = epic ? ['#f5c542', '#ffe38a', '#ffffff', col] : [col, c1, c2, '#ffffff'];
+  const BREAK = epic ? 800 : 600, T0 = performance.now();
   const crack = [...Array(9)].map((_, i) => { const a = i / 9 * Math.PI * 2 + Math.random() * .4; const pts = [[cx, cy]]; let x = cx, y = cy; for (let k = 0; k < 7; k++) { x += Math.cos(a + (Math.random() - .5) * .7) * (40 + Math.random() * 60); y += Math.sin(a + (Math.random() - .5) * .7) * (40 + Math.random() * 60); pts.push([x, y]); } return pts; });
-  let crashed = false, confetti = false;
+  let crashed = false, confetti = false; const burst = {};
   const maxD = Math.hypot(cx, cy);
   function frame(now) {
     const t = now - T0; g.clearRect(0, 0, W, H);
@@ -823,14 +827,17 @@ function fireFranchise(r, t) {
         if (a <= 0) continue; live++;
         g.save(); g.globalAlpha = a; g.translate(x + bw / 2, y + bh / 2); g.rotate(b.vr * k); g.fillStyle = `hsl(${(parseInt(c1.slice(1), 16) % 40) + 10},18%,${(16 * b.sh) | 0}%)`; g.fillRect(-bw / 2, -bh / 2, bw - 2, bh - 2); g.restore();
       }
-      if (t > 1250 && !confetti) { confetti = true; for (let i = 0; i < (small ? 46 : 90); i++) conf.push({ x: Math.random() * W, y: -20 - Math.random() * H * .4, vy: 2 + Math.random() * 3.5, vx: (Math.random() - .5) * 2, r: Math.random() * 6, vr: (Math.random() - .5) * .3, c: cols[i % 4], w: 6 + Math.random() * 6 }); }
+      if (epic) for (const at of [2300, 3000, 3700, 4400]) { if (t > at && !(burst[at])) { burst[at] = 1; const bx = W * (0.2 + Math.random() * 0.6), by = H * (0.18 + Math.random() * 0.3); for (let i = 0; i < 46; i++) { const an = Math.random() * 6.283, sp = 2 + Math.random() * 5; sparks.push({ x: bx, y: by, vx: Math.cos(an) * sp, vy: Math.sin(an) * sp, life: 1, c: cols[i % 3] }); } thud(true); } }
+      if (t > (epic ? 2300 : 1250) && !confetti) { confetti = true; for (let i = 0; i < (small ? 46 : 90); i++) conf.push({ x: Math.random() * W, y: -20 - Math.random() * H * .4, vy: 2 + Math.random() * 3.5, vx: (Math.random() - .5) * 2, r: Math.random() * 6, vr: (Math.random() - .5) * .3, c: cols[i % 4], w: 6 + Math.random() * 6 }); }
+      for (const q of sparks) { q.x += q.vx; q.y += q.vy; q.vy += 0.07; q.vx *= 0.985; q.life -= 0.013; if (q.life <= 0) continue; g.globalAlpha = q.life; g.fillStyle = q.c; g.beginPath(); g.arc(q.x, q.y, 2.6, 0, 6.283); g.fill(); g.globalAlpha = 1; }
       for (const q of conf) { q.x += q.vx; q.y += q.vy; q.r += q.vr; g.save(); g.translate(q.x, q.y); g.rotate(q.r); g.fillStyle = q.c; g.fillRect(-q.w / 2, -2, q.w, 4); g.restore(); }
     }
-    if (t < 3500) frRaf = requestAnimationFrame(frame);
+    if (t < END) frRaf = requestAnimationFrame(frame);
   }
   frRaf = requestAnimationFrame(frame);
-  fireHammer.b = setTimeout(() => fx.classList.add('out'), 3250);
-  fireHammer.c = setTimeout(() => { cancelAnimationFrame(frRaf); fx.className = ''; fx.innerHTML = ''; }, 3600);
+  if (epic) { const pe = document.getElementById('frprice'), st = performance.now() + 2500; const iv = setInterval(() => { const k = Math.min(1, Math.max(0, (performance.now() - st) / 1700)); pe.textContent = money(Math.round(r.price * (1 - Math.pow(1 - k, 3)))); if (k >= 1) clearInterval(iv); }, 40); fireHammer.a = iv; }
+  fireHammer.b = setTimeout(() => fx.classList.add('out'), END - 250);
+  fireHammer.c = setTimeout(() => { cancelAnimationFrame(frRaf); clearInterval(fireHammer.a); fx.className = ''; fx.innerHTML = ''; }, END + 100);
 }
 function crash() {
   if (!soundOn) return;

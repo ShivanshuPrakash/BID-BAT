@@ -10,6 +10,8 @@ const POOLS = ['Batsman', 'Bowler', 'All-rounder', 'Spinner'];
 const SQUAD_SIZES = [12, 15, 25];
 const BIG_JUMP = 500, BIG_LOCK = 3;   // lakh above the current price, and seconds of lock after such a bid
 const RESULT_GAP = 3.8;
+const EPIC_GAP = 6.6;                       // a few players get a longer, special sold animation
+const EPIC = new Set(['Virat Kohli']);
 const FRANCHISES = {
   CSK:  { name: 'Chennai Super Kings',         c1: '#F9CD05', c2: '#0A4DA2' },
   MI:   { name: 'Mumbai Indians',              c1: '#005DA0', c2: '#D1AB3E' },
@@ -257,7 +259,7 @@ class Room {
       this.unsold.push(this.current);
       this.result = { player: this.current, status: 'UNSOLD' };
     }
-    this.step = 'result'; this.nextAt = now + RESULT_GAP;
+    this.step = 'result'; this.nextAt = now + (this.result.status === 'SOLD' && EPIC.has(this.result.player.name) ? EPIC_GAP : RESULT_GAP);
   }
   /** Advance time-based events. Returns true if state changed. */
   tick(now) {
