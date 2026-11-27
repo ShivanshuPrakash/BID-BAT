@@ -307,17 +307,25 @@ function fieldHTML(t) {
 function rankHTML() {
   if (!S.ranking || !S.ranking.length) return '';
   const TL = { S: 'Elite', A: 'Strong', B: 'Average', C: 'Needs work' };
+  const sec = (x, extra, tid, key) => `<div class="sec"><div class="sech"><b>${esc(x.label)}</b><span class="vd v${esc((x.verdict || '').replace(/\W/g, ''))}">${esc(x.verdict)} · ${x.score}</span></div>${extra ? `<small class="sub">${extra}</small>` : ''}
+      <p>${esc(x.summary)}</p>
+      <button class="btn rmore" data-act="rkmore" data-t="${esc(tid)}" data-k="${esc(key)}">Read more <span class="cnt">${x.pros.length} ${x.pros.length === 1 ? "pro" : "pros"}, ${x.cons.length} ${x.cons.length === 1 ? "con" : "cons"}</span></button></div>`;
   const cards = S.ranking.map((g) => {
     const t = T(g.team); if (!t) return '';
     const star = g.star && t.squad.find((p) => p.id === g.star.id);
+    const imp = g.impact && { label: 'Impact player' + (g.impact.name ? ': ' + g.impact.name : ''), verdict: g.impact.verdict, score: g.impact.score, summary: g.impact.summary, pros: g.impact.pros.length ? g.impact.pros : ['None chosen.'], cons: g.impact.cons };
+    const bn = g.bench && { label: 'Bench strength', verdict: g.bench.verdict, score: g.bench.score, summary: g.bench.summary, pros: g.bench.pros, cons: g.bench.cons };
     return `<div class="rk tier${g.tier}" style="--c:${accentOf(t.color)}"><div class="rkh"><span class="rkn">#${g.rank}</span>${badge(t)}<div class="nm"><b>${esc(t.team_name)}</b><div class="sub">${esc(t.name)}</div></div><div class="tier-b"><b>${g.tier}</b><small>${TL[g.tier]}</small></div></div>
-      <div class="rks">Team score <b>${g.score}</b> / 100${g.thin_data ? ' <span class="tag" title="Several of these players have limited public stats">limited data</span>' : ''}</div>
+      <div class="rks">Playing XI score <b>${g.score}</b> / 100${g.thin_data ? ' <span class="tag" title="Several of these players have limited public stats">limited data</span>' : ''}</div>
+      <p class="rsum">${esc(g.summary)}</p>
       <div class="bars">${g.cats.map((c) => `<div class="bar"><span>${esc(c.label)}</span><i><u style="width:${Math.max(4, Math.min(100, c.score))}%"></u></i><b>${c.score}</b></div>`).join('')}</div>
-      <ul class="why">${g.lines.map((l) => `<li class="${l.good ? 'up' : 'dn'}">${l.good ? '▲' : '▼'} ${esc(l.text)}</li>`).join('')}</ul>
-      ${star && g.star.trump ? `<p class="sub"><b>${esc(star.name)}</b> is the match-winner: ${esc(g.star.trump)} Risk: ${esc(g.star.spot || 'none noted')}</p>` : ''}</div>`;
+      ${star && g.star.trump ? `<p class="sub"><b>${esc(star.name)}</b> is the match-winner of this XI (${esc(g.star.as)}). ${esc(g.star.trump)} Risk: ${esc(g.star.spot || 'none noted')}</p>` : ''}
+      <div class="secs">${g.cats.map((c) => sec(c, '', g.team, c.key)).join('')}</div>
+      ${imp || bn ? `<h3 class="rsub">Outside the XI score</h3><div class="secs">${imp ? sec(imp, 'Not counted in the XI score', g.team, 'impact') : ''}${bn ? sec(bn, 'Not counted in the XI score', g.team, 'bench') : ''}</div>` : ''}</div>`;
   }).join('');
+  const cond = S.settings.conditions && S.settings.conditions !== NORMAL ? ` Conditions used: ${esc(S.settings.conditions)}.` : '';
   return `<div class="panel rankp"><h2>Team rankings <span class="pill" style="margin-left:auto">${esc(S.ranking[0] ? (T(S.ranking[0].team) || {}).team_name || '' : '')} wins</span></h2>
-    <p class="counter">Graded only on the players: career body of work, recent form and how each one plays. Money spent and purse left do not count. Openers, middle order, hitters, all-rounders, pace and spin are compared one by one.</p><div class="tgrid rkg">${cards}</div></div>`;
+    <p class="counter">The playing XI is graded as you set it: each batter is rated for the slot he bats in, and the bowling is rated over by over for the powerplay, middle overs and death.${cond} The impact player and the bench are rated separately. Money spent and purse left do not count.</p><div class="rkg">${cards}</div></div>`;
 }
 function teamsHTML() {
   if (S.phase === 'lobby' || S.phase === 'selection') return '';
@@ -729,6 +737,8 @@ function thud(sold) {
 }
 
 function fireHammer(r) {
+  const tm = r.status === 'SOLD' ? T(r.team_id) : null;
+  if (tm && tm.franchise && FR[tm.franchise] && !reduce()) return fireFranchise(r, tm);
   const sold = r.status === 'SOLD', t = sold ? T(r.team_id) : null, col = t ? accentOf(t.color) : '#9aa0b4', fx = $('#fx'), rm = reduce();
   clearTimeout(fireHammer.a); clearTimeout(fireHammer.b); clearTimeout(fireHammer.c);
   fx.className = sold ? '' : 'unsold';
@@ -750,6 +760,86 @@ function fireHammer(r) {
   }, rm ? 0 : 780);
   fireHammer.b = setTimeout(() => fx.classList.add('out'), 2650);
   fireHammer.c = setTimeout(() => { fx.className = ''; fx.innerHTML = ''; }, 3000);
+}
+
+// ---------- read more popup for ranking sections ----------
+function openRk(tid, key) {
+  const g = (S.ranking || []).find((x) => x.team === tid), t = T(tid); if (!g || !t) return;
+  const x = key === 'impact' ? g.impact && { label: 'Impact player' + (g.impact.name ? ': ' + g.impact.name : ''), ...g.impact }
+    : key === 'bench' ? g.bench && { label: 'Bench strength', ...g.bench } : g.cats.find((c) => c.key === key);
+  if (!x) return;
+  closeRk();
+  const d = document.createElement('div'); d.id = 'rkpop'; d.className = 'rkpop';
+  d.innerHTML = `<div class="rkbox" role="dialog" aria-modal="true"><button class="rkx" data-act="rkclose" aria-label="Close">×</button>
+    <div class="sub">${esc(t.team_name)}${key === 'impact' || key === 'bench' ? ' · not counted in the XI score' : ''}</div>
+    <h3>${esc(x.label)} <span class="vd v${esc((x.verdict || '').replace(/\W/g, ''))}">${esc(x.verdict)} · ${x.score}</span></h3>
+    <p>${esc(x.summary)}</p>
+    <h4>Strengths</h4><ul class="pcl">${x.pros.map((l) => `<li class="up">▲ ${esc(l)}</li>`).join('')}</ul>
+    <h4>Concerns</h4><ul class="pcl">${x.cons.map((l) => `<li class="dn">▼ ${esc(l)}</li>`).join('')}</ul></div>`;
+  d.addEventListener('click', (e) => { if (e.target === d) closeRk(); });
+  document.body.appendChild(d);
+}
+const closeRk = () => { const d = document.getElementById('rkpop'); if (d) d.remove(); };
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeRk(); });
+
+// ---------- franchise sold animation: flag, wall breaks, jersey and SOLD ----------
+let frRaf = 0;
+function fireFranchise(r, t) {
+  const fx = $('#fx'), f = FR[t.franchise], c1 = f.c1, c2 = f.c2, col = accentOf(t.color);
+  cancelAnimationFrame(frRaf); clearTimeout(fireHammer.a); clearTimeout(fireHammer.b); clearTimeout(fireHammer.c);
+  const flag = f.flag ? `<div class="frflag img" style="background-image:url(${f.flag})"></div>`
+    : `<div class="frflag" style="background:linear-gradient(135deg,${c1},${c2})">${f.logo ? `<img class="frmark" src="${f.logo}" alt="">` : `<b class="frmark">${esc(t.franchise)}</b>`}</div>`;
+  fx.className = 'fr';
+  fx.innerHTML = `<div class="frx" style="--fc:${col}">${flag}<div class="frsheen"></div><canvas id="frc"></canvas>
+    <div class="frcard"><div class="frj">${jersey(r.player, c1, c2)}</div>
+      <div class="frst"><div class="w">Sold</div><div class="n">${esc(r.player.name)}</div>
+      <div class="p">${badge(t, 'sm')}<span>${esc(r.team)} for ${money(r.price)}</span></div></div></div></div>`;
+  fx.classList.add('on');
+  const cv = document.getElementById('frc'), W = innerWidth, H = innerHeight, small = W < 700;
+  cv.width = W; cv.height = H; const g = cv.getContext('2d');
+  const bw = small ? 110 : 96, bh = small ? 52 : 44, bricks = [], cx = W / 2, cy = H / 2;
+  for (let y = 0, row = 0; y < H + bh; y += bh, row++) for (let x = -(row % 2) * bw / 2; x < W; x += bw) {
+    const mx = x + bw / 2 - cx, my = y + bh / 2 - cy, d = Math.hypot(mx, my) || 1;
+    bricks.push({ x, y, d, vx: mx / d * (5 + Math.random() * 7), vy: my / d * (5 + Math.random() * 7) - 4, vr: (Math.random() - .5) * .35, r: 0, sh: 0.8 + Math.random() * 0.35 });
+  }
+  const conf = []; const cols = [col, c1, c2, '#ffffff'];
+  const BREAK = 600, T0 = performance.now();
+  const crack = [...Array(9)].map((_, i) => { const a = i / 9 * Math.PI * 2 + Math.random() * .4; const pts = [[cx, cy]]; let x = cx, y = cy; for (let k = 0; k < 7; k++) { x += Math.cos(a + (Math.random() - .5) * .7) * (40 + Math.random() * 60); y += Math.sin(a + (Math.random() - .5) * .7) * (40 + Math.random() * 60); pts.push([x, y]); } return pts; });
+  let crashed = false, confetti = false;
+  const maxD = Math.hypot(cx, cy);
+  function frame(now) {
+    const t = now - T0; g.clearRect(0, 0, W, H);
+    if (t < BREAK) {
+      const shake = t > 300 ? (Math.random() - .5) * 5 : 0; g.save(); g.translate(shake, shake);
+      for (const b of bricks) { g.fillStyle = `hsl(${(parseInt(c1.slice(1), 16) % 40) + 10},18%,${(16 * b.sh) | 0}%)`; g.fillRect(b.x + 1, b.y + 1, bw - 2, bh - 2); g.fillStyle = 'rgba(255,255,255,.05)'; g.fillRect(b.x + 1, b.y + 1, bw - 2, 3); }
+      const prog = Math.min(1, Math.max(0, (t - 180) / 380)); g.strokeStyle = '#05060a'; g.lineWidth = 3; g.lineCap = 'round';
+      for (const pts of crack) { g.beginPath(); const n = Math.max(1, Math.floor(prog * pts.length)); g.moveTo(...pts[0]); for (let i = 1; i < n; i++) g.lineTo(...pts[i]); g.stroke(); }
+      g.restore();
+    } else {
+      if (!crashed) { crashed = true; thud(true); crash(); }
+      const k = (t - BREAK) / 16.7; let live = 0;
+      for (const b of bricks) {
+        const x = b.x + b.vx * k * 2.4, y = b.y + b.vy * k * 2.4 + 0.5 * 0.5 * k * k * 0.5, a = Math.max(0, 1 - (t - BREAK) / 900);
+        if (a <= 0) continue; live++;
+        g.save(); g.globalAlpha = a; g.translate(x + bw / 2, y + bh / 2); g.rotate(b.vr * k); g.fillStyle = `hsl(${(parseInt(c1.slice(1), 16) % 40) + 10},18%,${(16 * b.sh) | 0}%)`; g.fillRect(-bw / 2, -bh / 2, bw - 2, bh - 2); g.restore();
+      }
+      if (t > 1250 && !confetti) { confetti = true; for (let i = 0; i < (small ? 46 : 90); i++) conf.push({ x: Math.random() * W, y: -20 - Math.random() * H * .4, vy: 2 + Math.random() * 3.5, vx: (Math.random() - .5) * 2, r: Math.random() * 6, vr: (Math.random() - .5) * .3, c: cols[i % 4], w: 6 + Math.random() * 6 }); }
+      for (const q of conf) { q.x += q.vx; q.y += q.vy; q.r += q.vr; g.save(); g.translate(q.x, q.y); g.rotate(q.r); g.fillStyle = q.c; g.fillRect(-q.w / 2, -2, q.w, 4); g.restore(); }
+    }
+    if (t < 3500) frRaf = requestAnimationFrame(frame);
+  }
+  frRaf = requestAnimationFrame(frame);
+  fireHammer.b = setTimeout(() => fx.classList.add('out'), 3250);
+  fireHammer.c = setTimeout(() => { cancelAnimationFrame(frRaf); fx.className = ''; fx.innerHTML = ''; }, 3600);
+}
+function crash() {
+  if (!soundOn) return;
+  try {
+    audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+    const ac = audio, t = ac.currentTime, b = ac.createBuffer(1, Math.floor(ac.sampleRate * 0.6), ac.sampleRate), d = b.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 2.2);
+    const s = ac.createBufferSource(), g = ac.createGain(), fl = ac.createBiquadFilter(); fl.type = 'lowpass'; fl.frequency.value = 1400; g.gain.value = 0.7; s.buffer = b; s.connect(fl).connect(g).connect(ac.destination); s.start(t);
+  } catch {}
 }
 
 // ---------- input handling ----------
@@ -828,6 +918,8 @@ document.addEventListener('click', (e) => {
     case 'backlobby': selDraft = null; wishDraft = null; cache.stage = null; return send({ action: 'back_to_lobby' });
     case 'closesel': return send({ action: 'close_selection' });
     case 'startauc': return send({ action: 'start_auction' });
+    case 'rkmore': return openRk(el.dataset.t, el.dataset.k);
+    case 'rkclose': return closeRk();
     case 'nextpool': return send({ action: 'next_pool', pool: el.dataset.pool });
     case 'pause': case 'resume': return send({ action: act });
     case 'reauc': return send({ action: 'reauction' });

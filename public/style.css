@@ -372,7 +372,7 @@ body.hot:after{content:"";position:fixed;inset:0;z-index:2;pointer-events:none;b
 .tcard.sv{border-color:rgba(88,211,155,.4)}
 
 /* ---------- team rankings ---------- */
-.rkg{grid-template-columns:repeat(auto-fill,minmax(340px,1fr))}
+.rkg{display:grid;gap:18px;grid-template-columns:1fr}
 .rk{border:1px solid var(--line);border-radius:14px;padding:16px;background:var(--panel2);position:relative;overflow:hidden}
 .rk::before{content:"";position:absolute;inset:0 0 auto 0;height:4px;background:var(--c)}
 .rk.tierS{border-color:#f2c14e;box-shadow:0 0 40px rgba(242,193,78,.14)}
@@ -466,3 +466,58 @@ body.hot:after{content:"";position:fixed;inset:0;z-index:2;pointer-events:none;b
 .pcol{display:flex;flex-direction:column;align-items:center;gap:12px}
 .pcol .pass{flex:none;min-width:0;align-self:center;width:100%;max-width:230px;padding:9px 16px;font-size:14px;border-radius:12px}
 .cbid input[type=text]{font-size:18px;font-variant-numeric:tabular-nums}
+
+/* team report: pros and cons per section */
+.rsum{margin:4px 0 12px;font-size:14px;line-height:1.5}
+.rk .bars{max-width:560px}
+.secs{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));margin-top:14px}
+.sec{border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:rgba(255,255,255,.025)}
+.sech{display:flex;align-items:center;gap:8px;justify-content:space-between}
+.sech b{font-size:15px}
+.vd{font-size:12px;font-weight:700;padding:3px 9px;border-radius:99px;background:var(--line2);color:var(--tx);white-space:nowrap}
+.vd.vExcellent{background:#f2c14e;color:#241a00}.vd.vStrong{background:#58d39b;color:#06241a}.vd.vSolid{background:#5aa9ff;color:#06182e}.vd.vWeak{background:#e86a5a;color:#2a0803}
+.sec p{margin:8px 0;font-size:13.5px;color:var(--mut);line-height:1.45}
+.pcl{list-style:none;padding:0;margin:6px 0 0;display:grid;gap:5px;font-size:13px;line-height:1.4}
+.pcl li.up{color:var(--green)}.pcl li.dn{color:#f08a7a}
+.rsub{margin:20px 0 0;font-size:14px;color:var(--mut);font-weight:600}
+
+/* franchise sold animation */
+#fx.fr{background:#05060a}
+.frx{position:fixed;inset:0;overflow:hidden}
+.frflag{position:absolute;inset:-6%;transform-origin:0 50%;animation:flagwave 2.4s ease-in-out infinite}
+.frflag.img{background-size:cover;background-position:center}
+.frflag .frmark{position:absolute;left:50%;top:50%;width:min(46vmin,360px);transform:translate(-50%,-50%);opacity:.3;font:900 30vmin var(--disp);color:#fff;text-align:center}
+.frflag::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.28),rgba(0,0,0,.55))}
+@keyframes flagwave{0%,100%{transform:skewY(-1.8deg) scaleX(1.02)}50%{transform:skewY(1.8deg) scaleX(.99)}}
+.frsheen{position:absolute;inset:0;background:linear-gradient(100deg,transparent 30%,rgba(255,255,255,.16) 48%,transparent 62%);background-size:260% 100%;animation:sheen 2.2s linear infinite;mix-blend-mode:soft-light}
+@keyframes sheen{from{background-position:130% 0}to{background-position:-130% 0}}
+.frx canvas{position:absolute;inset:0;width:100%;height:100%}
+.frcard{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-align:center}
+.frj{width:min(46vw,250px);opacity:0;animation:frj .55s cubic-bezier(.2,1.4,.4,1) .85s forwards;filter:drop-shadow(0 18px 30px rgba(0,0,0,.55))}
+.frj svg{width:100%;height:auto;display:block}
+@keyframes frj{from{opacity:0;transform:scale(2.4) rotate(-8deg)}to{opacity:1;transform:none}}
+.frst{opacity:0;animation:slam .5s cubic-bezier(.2,1.5,.4,1) 1.2s forwards}
+.frst .w{font:900 clamp(80px,17vw,150px)/.85 var(--disp);text-transform:uppercase;color:#fff;letter-spacing:.03em;text-shadow:0 0 50px var(--fc),0 6px 0 rgba(0,0,0,.35)}
+.frst .n{font:800 clamp(24px,4.6vw,40px)/1.1 var(--disp);text-transform:uppercase;margin-top:10px;color:#fff;text-shadow:0 2px 12px rgba(0,0,0,.7)}
+.frst .p{display:inline-flex;align-items:center;gap:12px;margin-top:10px;font:700 clamp(20px,3.6vw,30px)/1 var(--disp);color:#fff;text-shadow:0 2px 12px rgba(0,0,0,.7)}
+@media(prefers-reduced-motion:reduce){.frflag,.frsheen,.frj,.frst{animation:none!important;opacity:1}}
+
+/* read more popup */
+.rmore{margin-top:4px;padding:8px 14px;font-size:13px}
+.rmore .cnt{color:var(--mut);font-weight:500;margin-left:6px;font-size:12px}
+.rkpop{position:fixed;inset:0;z-index:200;display:grid;place-items:center;background:rgba(5,6,9,.78);padding:16px;animation:fxin .18s ease-out}
+.rkbox{position:relative;width:min(640px,100%);max-height:88vh;overflow:auto;background:var(--panel);border:1px solid var(--line2);border-radius:18px;padding:22px 24px;box-shadow:0 30px 80px rgba(0,0,0,.6)}
+.rkbox h3{margin:4px 0 8px;font-size:22px;display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.rkbox h4{margin:16px 0 6px;font-size:13px;color:var(--mut);font-weight:600}
+.rkbox p{color:var(--mut);line-height:1.5;margin:0}
+.rkbox .pcl{font-size:14px}
+.rkx{position:absolute;right:12px;top:10px;width:36px;height:36px;border-radius:50%;border:1px solid var(--line2);background:transparent;color:var(--tx);font-size:22px;line-height:1;cursor:pointer}
+
+/* logo badges: fixed circle, picture fills it */
+.badge.logo{width:40px;min-width:40px;padding:0!important;overflow:hidden;background:#0c0e13!important}
+.badge.logo.sm{width:28px;min-width:28px}
+.badge.logo.lg{width:56px;min-width:56px}
+#bidfx .badge.logo{width:48px;min-width:48px}
+.badge.logo img{width:100%;height:100%;object-fit:cover;display:block}
+.tile .badge.logo{width:46px;min-width:46px;height:46px}
+.frflag img.frmark{border-radius:50%}

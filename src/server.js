@@ -20,9 +20,10 @@ const server = http.createServer((req, res) => {
   let url = decodeURIComponent((req.url || '/').split('?')[0]);
   if (url === '/api/meta') {
     // team logos: drop public/logos/<CODE>.png (or svg/jpg/webp), e.g. CSK.png; picked up on the next page load
+    let flags = []; try { flags = fs.readdirSync(path.join(PUBLIC, 'flags')); } catch { /* none */ }
     let files = []; try { files = fs.readdirSync(path.join(PUBLIC, 'logos')); } catch { /* none */ }
     const out = {};
-    for (const [k, v] of Object.entries(FRANCHISES)) { const f = files.find((x) => /\.(png|svg|jpe?g|webp)$/i.test(x) && x.replace(/\.[^.]+$/, '').toUpperCase() === k.toUpperCase()); out[k] = { ...v, logo: f ? '/logos/' + f : '' }; }
+    for (const [k, v] of Object.entries(FRANCHISES)) { const f = files.find((x) => /\.(png|svg|jpe?g|webp)$/i.test(x) && x.replace(/\.[^.]+$/, '').toUpperCase() === k.toUpperCase()); const fl = flags.find((x) => /\.(png|jpe?g|webp)$/i.test(x) && x.replace(/\.[^.]+$/, '').toUpperCase() === k.toUpperCase()); out[k] = { ...v, logo: f ? '/logos/' + f : '', flag: fl ? '/flags/' + fl : '' }; }
     res.writeHead(200, { 'Content-Type': MIME['.json'] }); return res.end(JSON.stringify(out));
   }
   if (url === '/') url = '/index.html';

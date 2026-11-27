@@ -9,7 +9,7 @@ const rating = require('./rating');
 const POOLS = ['Batsman', 'Bowler', 'All-rounder', 'Spinner'];
 const SQUAD_SIZES = [12, 15, 25];
 const BIG_JUMP = 500, BIG_LOCK = 3;   // lakh above the current price, and seconds of lock after such a bid
-const RESULT_GAP = 3.0;
+const RESULT_GAP = 3.8;
 const FRANCHISES = {
   CSK:  { name: 'Chennai Super Kings',         c1: '#F9CD05', c2: '#0A4DA2' },
   MI:   { name: 'Mumbai Indians',              c1: '#005DA0', c2: '#D1AB3E' },
@@ -428,7 +428,7 @@ class Room {
     const allSaved = this.phase === 'finished' && live.length > 0 && live.every((t) => t.saved);
     let ranking = null;
     if (allSaved && rating.available()) {          // stats-based grades appear only after everyone has saved
-      ranking = rating.rankTeams(live).map((g) => ({ ...g, pool: undefined }));
+      ranking = rating.rankTeams(live, this.settings.conditions).map((g) => ({ ...g, pool: undefined }));
     }
     return {
       ranking,

@@ -187,7 +187,7 @@ test('ranking only after all teams saved, ignores money, shows tiers', () => {
   r.saveTeam(a); assert.equal(r.view(a, 0).ranking, null);
   r.saveTeam(b); const rk = r.view(a, 0).ranking;
   assert.equal(rk.length, 2); assert.ok(['S', 'A', 'B', 'C'].includes(rk[0].tier)); assert.ok(rk[0].score >= rk[1].score);
-  assert.ok(rk[0].cats.length === 6);
+  assert.ok(rk[0].cats.length === 8);
 });
 test('host can remove a team: bid voided, cannot bid or rejoin, ignored for end and ranking', () => {
   const r = mk(3); const [h, a, b] = [...r.teams.keys()]; r.phase = 'auction'; r.step = 'bidding';
@@ -234,4 +234,25 @@ test('trade keeps the rest of the XI in place', () => {
   const ta = r.teams.get(a); ta.xi = names.map(pidOf); ta.captain = pidOf('Jos Buttler'); ta.impact = null; ta.saved = true;
   const t = r.proposeTrade(a, b, [pidOf('Mohammed Siraj')], [pidOf('Noor Ahmed')], 0); r.respondTrade(b, t.id, true);
   assert.deepEqual(ta.xi, [pidOf('Rishabh Pant'), pidOf('Jos Buttler')]); assert.equal(ta.captain, pidOf('Jos Buttler')); assert.equal(ta.saved, false);
+});
+
+test('rating uses the batting slot and conditions; impact and bench are separate', () => {
+  const rating = require('../src/rating');
+  const by = (n) => { const p = [...PLAYERS.values()].find((x) => x.name === n); assert.ok(p, n); return p; };
+  const names = ['Vaibhav Suryavanshi', 'Phil Salt', 'Virat Kohli', 'Shubman Gill', 'Suryakumar Yadav', 'Hardik Pandya', 'Sunil Narine', 'Rashid Khan', 'Jasprit Bumrah', 'Mohammed Siraj', 'Kuldeep Yadav', 'Ravindra Jadeja', 'Tilak Varma'];
+  const sq = names.map(by); const mk2 = (order) => ({ id: 'a', squad: sq, xi: order.map((n) => by(n).id), impact: by('Ravindra Jadeja').id });
+  const xi = names.slice(0, 11);
+  const g = rating.rankTeams([mk2(xi)], 'Dry, turning pitch (spin-friendly)')[0];
+  assert.equal(g.cats.length, 8); assert.ok(g.impact && g.bench);
+  for (const c of g.cats) { assert.ok(c.pros.length && c.cons.length && c.summary); }
+  // Narine at 7 is flagged as out of his usual role; at 1 he is a natural opener
+  const at7 = g.cats.find((c) => c.key === 'fin');
+  assert.ok(at7.cons.some((x) => x.includes('Sunil Narine is usually an opener')));
+  const swapped = [...xi]; swapped[0] = 'Sunil Narine'; swapped[6] = 'Vaibhav Suryavanshi';
+  const g2 = rating.rankTeams([mk2(swapped)], 'Dry, turning pitch (spin-friendly)')[0];
+  assert.ok(!g2.cats.find((c) => c.key === 'open').cons.some((x) => x.includes('usually an opener')));
+  // conditions change the spin score
+  const turn = rating.rankTeams([mk2(xi)], 'Dry, turning pitch (spin-friendly)')[0].cats.find((c) => c.key === 'spin').score;
+  const green = rating.rankTeams([mk2(xi)], 'Green top (pace and bounce)')[0].cats.find((c) => c.key === 'spin').score;
+  assert.ok(turn > green);
 });

@@ -47,7 +47,13 @@ Pause/resume, **End auction** (two clicks), and the **Pools left** bar: tap a po
 - Press **Save team** when your XI is ready (teams with fewer than 11 players can save as they are). When every team has saved, the final squads and playing XI screen appears. A new trade unlocks the teams involved until they save again.
 
 ## Team rankings (after the auction)
-When every team has saved, the final screen grades each team S, A, B or C. Grades use only `data/stats.json` (career stats, recent form, style, 0-100 role ratings with a confidence flag) and ignore money spent and purse left. Stats are never sent to players during the auction. Players marked low confidence had thin public data and count less; edit `data/stats.json` to correct any rating. Tier cut-offs are in `src/rating.js` (`CUTS`).
+When every team has saved, the final screen grades each team S, A, B or C and writes a report with pros and cons for every section. Grades use only `data/stats.json` and ignore money spent and purse left. Stats are never sent to players during the auction.
+
+- **Playing XI score** (what decides S/A/B/C): openers (slots 1-2), middle order (3-5), hitting and finishing (6-8), batting depth, pace attack, spin attack, bowling by phase (powerplay, middle, death, rated over by over), and team balance. Each batter is rated for the slot he is placed in (a usual opener placed at No. 7 is rated as a No. 7). Spin and pace are judged by overs bowled, so one good spinner plus part-timers is fine.
+- **Impact player** and **bench strength** get their own rating and pros/cons and are not part of the XI score.
+- The **conditions** chosen by the host shift the ratings (spin on turning pitches, pace on green tops, hitters on flat tracks, and so on). See `CONDS` in `src/rating.js`.
+- Tier cut-offs are `CUTS` in `src/rating.js`; `node test/calibrate.js` prints the score spread of random teams to re-tune them.
+- Players marked low confidence had thin public data; the report says so. Edit `data/stats.json` to correct any rating.
 
 ## Player list and team picker
 `data/players.json` now has 401 players: the auction lists plus everyone who played at least one IPL 2024 or 2025 match (including retained stars such as Virat Kohli). Each player has a `team` and `season`: the franchise of his most recent season. On the selection screen use the **Team squad** dropdown to view one team and tick players, or press "Select all". Players with no `team` appear under "Other players". Squad lists were compiled from public pages and may have small errors; edit `team`/`season` in `data/players.json` to correct them.
@@ -84,3 +90,9 @@ Host can pick **Mix** to jumble every selected player into one random order (a s
 - **Jersey cards**: each player is a shirt in his team's colours with the surname on the back.
 - **Team bid bar**: above the lot, every team's purse and squad count; the leading bidder is highlighted, teams that can't bid (squad full, overseas limit, low purse, passed) are greyed with the reason.
 - **Squad board**: the final screen shows each team's XI on a pitch in batting order, with impact player and bench.
+
+## Logos, flags and the franchise SOLD animation
+- Team logos are in `public/logos/<CODE>.png` (all ten teams). They show in the team picker, badges and results.
+- A flag picture can be set per team in `public/flags/<CODE>.jpg`; Punjab uses its own picture. Teams without one get a flag in their colours with the logo.
+- Players who pick an IPL franchise get a longer SOLD animation: waving flag, brick wall breaking, jersey with initials, SOLD stamp and confetti. Custom teams keep the hammer. It is skipped when the system asks for reduced motion.
+- Team report sections show a short summary with a **Read more** button that opens the full strengths and concerns.
