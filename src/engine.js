@@ -301,7 +301,12 @@ class Room {
   chooseNextPool(pid, pool) {
     this.hostOnly(pid);
     if (this.phase !== 'auction') fail('The auction is not running');
+    if (pool === 'Mix') {                         // jumble everything still to come into one surprise order
+      if (!this.queue.length) fail('No players are left in this round');
+      this.queue = shuffle([...this.queue]); this.mixed = true; return;
+    }
     if (!POOLS.includes(pool)) fail('Unknown pool');
+    this.mixed = false;
     const inPool = this.queue.filter((i) => P(i).type === pool);
     if (!inPool.length) fail(`No ${pool} players are left in this round`);
     this.queue = [...inPool, ...this.queue.filter((i) => P(i).type !== pool)];
@@ -438,7 +443,7 @@ class Room {
       host_id: this.hostId, me: viewer, teams, current: cur,
       all_saved: allSaved,
       result: this.result ? { ...this.result, player: pl(this.result.player) } : null,
-      queue_left: this.queue.length, next_pool: this.queue.length ? P(this.queue[0]).type : null,
+      queue_left: this.queue.length, mixed: !!this.mixed || !!this.settings.mix, next_pool: this.queue.length ? P(this.queue[0]).type : null,
       pools_left: Object.fromEntries(POOLS.map((x) => [x, this.queue.filter((i) => P(i).type === x).length])), unsold: this.unsold.map(pl),
       selection_remaining: this.phase === 'selection' ? Math.max(0, Math.round((this.selectionDeadline - now) * 10) / 10) : 0,
       my_selection: me ? [...me.selection].sort((a, b) => a - b) : [], pool_size: this.pool.length,

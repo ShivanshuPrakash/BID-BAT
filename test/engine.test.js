@@ -256,3 +256,17 @@ test('rating uses the batting slot and conditions; impact and bench are separate
   const green = rating.rankTeams([mk2(xi)], 'Green top (pace and bounce)')[0].cats.find((c) => c.key === 'spin').score;
   assert.ok(turn > green);
 });
+
+test('host can switch the remaining players to a mixed order mid-auction', () => {
+  const r = mk(); const ids = ['Jos Buttler', 'Rishabh Pant', 'Mohammed Siraj', 'Pat Cummins', 'Noor Ahmed', 'Rashid Khan', 'Hardik Pandya'].map(pidOf);
+  start(r, ids);
+  throws(() => r.chooseNextPool([...r.teams.keys()][1], 'Mix'), /host/i);
+  const before = [...r.queue].sort((a, b) => a - b);
+  let moved = false;
+  for (let k = 0; k < 20 && !moved; k++) { const o = [...r.queue]; r.chooseNextPool(r.hostId, 'Mix'); moved = o.join() !== r.queue.join(); }
+  assert.ok(moved, 'order changes');
+  assert.deepEqual([...r.queue].sort((a, b) => a - b), before, 'same players, none lost');
+  assert.equal(r.view(r.hostId, 0).mixed, true);
+  r.chooseNextPool(r.hostId, 'Spinner');
+  assert.equal(r.view(r.hostId, 0).mixed, false);
+});

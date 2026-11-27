@@ -99,4 +99,5 @@ Host can pick **Mix** to jumble every selected player into one random order (a s
 
 ## Player photos and the Kohli moment
 - Put a player photo in `public/photos/<player-name>.jpg` (lower-case, hyphens, e.g. `virat-kohli.jpg`). It replaces the jersey on his auction card. Virat Kohli's photo is already included.
+- During the auction the host can tap **Mix** in the pool bar to jumble every player still to come into one surprise order (tap a pool to go back to pool order).
 - Virat Kohli has a special sold animation for any team: the throne picture (`public/epic/virat-kohli.jpg`), "The King" title, a gold shockwave, a counting price and fireworks. The pause after his sale is longer (6.6 s). To add another player, add him to `EPIC` in `src/engine.js` and `public/app.js` with a picture in `public/epic/`.
